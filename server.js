@@ -14,9 +14,10 @@ const PUBLIC = path.join(ROOT, 'public');
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(ROOT, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // 受保护字段（不可被客户端 sync 覆盖）
-const PROTECTED = new Set(['username', 'passwordHash', 'salt', 'password']);
+const PROTECTED = new Set(['username', 'passwordHash', 'salt', 'password', '_space', 'activeSpace']);
 const DEFAULT_DATA = () => ({
   displayName: '', grade: '', xp: 0, checkins: [],
   homework: [], poetry: [], words: [], wrong: [], log: [], createdAt: new Date().toISOString(),
@@ -39,6 +40,20 @@ async function initStore() {
       password_hash TEXT NOT NULL,
       salt TEXT NOT NULL,
       data JSONB NOT NULL
+    )`);
+    await pg.query(`CREATE TABLE IF NOT EXISTS spaces(
+      code TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_username TEXT NOT NULL,
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )`);
+    await pg.query(`CREATE TABLE IF NOT EXISTS space_members(
+      code TEXT NOT NULL REFERENCES spaces(code) ON DELETE CASCADE,
+      username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+      role TEXT NOT NULL DEFAULT 'member',
+      created_at TIMESTAMPTZ DEFAULT now(),
+      PRIMARY KEY(code, username)
     )`);
     MODE = 'pg';
     console.log('存储模式: Postgres (Supabase)');
@@ -86,8 +101,57 @@ const publicFrom = (data, username) => ({ username, ...data });
 function hashPassword(password, salt) { return crypto.scryptSync(password, salt, 64).toString('hex'); }
 function genSalt() { return crypto.randomBytes(16).toString('hex'); }
 function genToken() { return crypto.randomBytes(24).toString('hex'); }
+function genSpaceCode() { return crypto.randomBytes(4).toString('hex').slice(0, 6).toUpperCase(); }
 
 const sessions = new Map(); // token -> username
+
+function cleanClientData(data) {
+  const out = { ...(data || {}) };
+  for (const k of PROTECTED) delete out[k];
+  return out;
+}
+async function fetchSpaceForUser(username, code) {
+  if (MODE !== 'pg' || !code) return null;
+  const r = await pg.query(
+    `SELECT s.code, s.name, s.owner_username, s.data, m.role
+     FROM spaces s
+     JOIN space_members m ON m.code=s.code
+     WHERE s.code=$1 AND m.username=$2`,
+    [code, username]
+  );
+  return r.rows[0] || null;
+}
+async function publicUser(u) {
+  if (MODE === 'pg' && u.data && u.data.activeSpace) {
+    const space = await fetchSpaceForUser(u.username, u.data.activeSpace);
+    if (space) {
+      return publicFrom({
+        ...space.data,
+        _space: { code: space.code, name: space.name, role: space.role, owner: space.owner_username },
+      }, u.username);
+    }
+  }
+  return publicFrom({ ...u.data, _space: null }, u.username);
+}
+async function putUserData(username, data) {
+  const u = await fetchUser(username);
+  if (!u) return null;
+  await putUser(username, u.passwordHash, u.salt, data);
+  return await fetchUser(username);
+}
+async function createSpace(username, name, seedData) {
+  if (MODE !== 'pg') throw new Error('共享空间需要启用 Supabase/Postgres');
+  let code = genSpaceCode();
+  for (let i = 0; i < 5; i++) {
+    const exists = await pg.query('SELECT code FROM spaces WHERE code=$1', [code]);
+    if (!exists.rows.length) break;
+    code = genSpaceCode();
+  }
+  const data = cleanClientData(seedData);
+  await pg.query('INSERT INTO spaces(code, name, owner_username, data) VALUES($1,$2,$3,$4)', [code, name, username, data]);
+  await pg.query('INSERT INTO space_members(code, username, role) VALUES($1,$2,$3)', [code, username, 'owner']);
+  return code;
+}
 
 function sendJSON(res, code, obj) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -125,7 +189,7 @@ async function handleApi(req, res, pathname) {
     const data = DEFAULT_DATA(); data.displayName = displayName; data.grade = grade;
     await putUser(username, passwordHash, salt, data);
     const token = genToken(); sessions.set(token, username);
-    return sendJSON(res, 200, { token, user: publicFrom(data, username) });
+    return sendJSON(res, 200, { token, user: await publicUser({ username, passwordHash, salt, data }) });
   }
   // 登录
   if (pathname === '/api/login' && req.method === 'POST') {
@@ -135,7 +199,7 @@ async function handleApi(req, res, pathname) {
     const u = await fetchUser(username);
     if (!u || u.passwordHash !== hashPassword(password, u.salt)) return sendJSON(res, 401, { error: '用户名或密码错误' });
     const token = genToken(); sessions.set(token, username);
-    return sendJSON(res, 200, { token, user: publicFrom(u.data, username) });
+    return sendJSON(res, 200, { token, user: await publicUser(u) });
   }
   // 登出
   if (pathname === '/api/logout' && req.method === 'POST') {
@@ -145,16 +209,49 @@ async function handleApi(req, res, pathname) {
   // 拉取当前用户状态
   if (pathname === '/api/state' && req.method === 'GET') {
     const u = await authUser(req); if (!u) return sendJSON(res, 401, { error: '未登录' });
-    return sendJSON(res, 200, { user: publicFrom(u.data, u.username) });
+    return sendJSON(res, 200, { user: await publicUser(u) });
   }
   // 同步（客户端上报可变数据，服务端合并保存）
   if (pathname === '/api/sync' && req.method === 'POST') {
     const u = await authUser(req); if (!u) return sendJSON(res, 401, { error: '未登录' });
     const b = await readBody(req);
-    const data = { ...u.data };
+    const activeSpace = MODE === 'pg' ? await fetchSpaceForUser(u.username, u.data && u.data.activeSpace) : null;
+    const data = activeSpace ? { ...activeSpace.data } : { ...u.data };
     for (const k of Object.keys(b)) { if (PROTECTED.has(k)) continue; data[k] = b[k]; }
+    if (activeSpace) {
+      await pg.query('UPDATE spaces SET data=$1 WHERE code=$2', [data, activeSpace.code]);
+      return sendJSON(res, 200, { user: await publicUser(u) });
+    }
     await putUser(u.username, u.passwordHash, u.salt, data);
-    return sendJSON(res, 200, { user: publicFrom(data, u.username) });
+    return sendJSON(res, 200, { user: await publicUser({ ...u, data }) });
+  }
+  // 创建共享学习空间，并把当前账号的数据作为初始数据
+  if (pathname === '/api/space/create' && req.method === 'POST') {
+    const u = await authUser(req); if (!u) return sendJSON(res, 401, { error: '未登录' });
+    const b = await readBody(req);
+    const name = (b.name || '').trim() || ((u.data.displayName || u.username) + '的学习空间');
+    const seed = b.seed || u.data;
+    const code = await createSpace(u.username, name, seed);
+    const nextData = { ...u.data, activeSpace: code };
+    const nextUser = await putUserData(u.username, nextData);
+    return sendJSON(res, 200, { user: await publicUser(nextUser) });
+  }
+  // 加入共享学习空间
+  if (pathname === '/api/space/join' && req.method === 'POST') {
+    const u = await authUser(req); if (!u) return sendJSON(res, 401, { error: '未登录' });
+    const b = await readBody(req);
+    const code = String(b.code || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(code)) return sendJSON(res, 400, { error: '共享码格式不正确' });
+    if (MODE !== 'pg') return sendJSON(res, 400, { error: '共享空间需要启用 Supabase/Postgres' });
+    const space = await pg.query('SELECT code FROM spaces WHERE code=$1', [code]);
+    if (!space.rows.length) return sendJSON(res, 404, { error: '共享空间不存在' });
+    await pg.query(
+      `INSERT INTO space_members(code, username, role) VALUES($1,$2,$3)
+       ON CONFLICT(code, username) DO NOTHING`,
+      [code, u.username, 'member']
+    );
+    const nextUser = await putUserData(u.username, { ...u.data, activeSpace: code });
+    return sendJSON(res, 200, { user: await publicUser(nextUser) });
   }
   return sendJSON(res, 404, { error: '接口不存在' });
 }
@@ -194,5 +291,5 @@ const server = http.createServer((req, res) => {
 });
 
 initStore()
-  .then(() => server.listen(PORT, '0.0.0.0', () => console.log(`学习台已启动: http://localhost:${PORT} (mode=${MODE})`)))
+  .then(() => server.listen(PORT, HOST, () => console.log(`学习台已启动: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} (mode=${MODE})`)))
   .catch((e) => { console.error('存储初始化失败:', e.message); process.exit(1); });

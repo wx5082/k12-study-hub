@@ -80,6 +80,20 @@
       </div>
 
       <div class="card">
+        <h2>共享学习空间</h2>
+        <div class="hint" id="sp-status">当前为个人数据。创建共享空间后，多个账号可用同一个共享码共同更新这份学习数据。</div>
+        <div class="form-row">
+          <div style="flex:1;min-width:180px"><label>空间名称</label><input id="sp-name" placeholder="如：小明的学习空间" /></div>
+          <div style="flex:1;min-width:160px"><label>共享码</label><input id="sp-code" placeholder="输入 6 位共享码" maxlength="6" /></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn sm" id="sp-create">创建共享空间</button>
+          <button class="btn ghost sm" id="sp-join">加入共享空间</button>
+          <span class="tag hidden" id="sp-current"></span>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>🎯 今日复习队列</h2>
         <div class="hint">把今天该复习的古诗文 / 单词 / 错题一次清掉，漏掉会留在队列里。</div>
         <div id="ov-due-list"></div>

@@ -8,6 +8,7 @@ let state = { token: null, user: null };
 let revealed = new Set();      // 复习中已翻看答案的 id
 let rvFilter = 'all';          // 复习页筛选
 let pendingSubtasks = [];      // 作业登记时的临时步骤
+let refreshTimer = null;       // 多端同步轮询
 
 /* ---------------- 工具 ---------------- */
 function fmt(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -34,6 +35,25 @@ async function sync() {
   SYNC_FIELDS.forEach(f => payload[f] = state.user[f]);
   const r = await api('/api/sync', 'POST', payload);
   state.user = r.user;
+}
+async function refreshState(silent = true) {
+  if (!state.token) return;
+  try {
+    const r = await api('/api/state');
+    state.user = r.user;
+    renderAll();
+    if (!silent) toast('已同步最新数据');
+  } catch (e) {
+    if (!silent) toast(e.message);
+  }
+}
+function startRefresh() {
+  stopRefresh();
+  refreshTimer = setInterval(() => refreshState(true), 10000);
+}
+function stopRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = null;
 }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -244,6 +264,7 @@ function renderAll() {
   $('#ui-name').textContent = state.user.displayName || state.user.username;
   $('#ui-grade').textContent = state.user.grade || '未填年级';
   $('#ui-avatar').textContent = (state.user.displayName || state.user.username || '?').slice(0, 1);
+  renderSpace();
   renderOverview();
   renderHomework();
   renderPoetry();
@@ -251,6 +272,22 @@ function renderAll() {
   renderWrong();
   renderReview();
   renderReport();
+}
+
+function renderSpace() {
+  const sp = state.user._space;
+  const status = $('#sp-status');
+  const current = $('#sp-current');
+  if (!status || !current) return;
+  if (sp) {
+    status.textContent = '当前空间：' + sp.name + '。把共享码给其他账号，对方登录后输入即可共同更新这份学习数据。';
+    current.textContent = '共享码：' + sp.code;
+    current.classList.remove('hidden');
+    $('#sp-name').value = sp.name;
+  } else {
+    status.textContent = '当前为个人数据。创建共享空间后，多个账号可用同一个共享码共同更新这份学习数据。';
+    current.classList.add('hidden');
+  }
 }
 
 /* ---------------- 增删改操作 ---------------- */
@@ -361,9 +398,32 @@ $('#btn-checkin').addEventListener('click', () => {
   sync().then(() => { renderAll(); toast('打卡成功 +10 🔥'); });
 });
 
+// 共享空间
+$('#sp-create').addEventListener('click', async () => {
+  const name = $('#sp-name').value.trim() || ((state.user.displayName || state.user.username) + '的学习空间');
+  try {
+    const r = await api('/api/space/create', 'POST', { name, seed: state.user });
+    state.user = r.user;
+    renderAll();
+    toast('共享空间已创建');
+  } catch (e) { toast(e.message); }
+});
+$('#sp-join').addEventListener('click', async () => {
+  const code = $('#sp-code').value.trim().toUpperCase();
+  if (!code) { toast('请输入共享码'); return; }
+  try {
+    const r = await api('/api/space/join', 'POST', { code });
+    state.user = r.user;
+    $('#sp-code').value = '';
+    renderAll();
+    toast('已加入共享空间');
+  } catch (e) { toast(e.message); }
+});
+
 // 退出
 $('#btn-logout').addEventListener('click', async () => {
   try { await api('/api/logout', 'POST'); } catch (e) {}
+  stopRefresh();
   state = { token: null, user: null };
   $('#app').classList.add('hidden'); $('#auth').classList.remove('hidden');
 });
@@ -435,6 +495,7 @@ $('#authForm').addEventListener('submit', async e => {
     state.token = r.token; state.user = r.user;
     $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
     renderAll();
+    startRefresh();
   } catch (err) { $('#au-err').textContent = err.message; }
 });
 
