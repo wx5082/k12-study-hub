@@ -129,9 +129,10 @@ textarea { resize: vertical; min-height: 60px; }
 .flip-btn { margin-top: 8px; }
 
 /* 战报 */
-.report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.report-grid .stat { text-align: left; }
-.report-grid .stat .v { font-size: 20px; }
+.report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; }
+.report-grid .stat { text-align: left; padding: 10px 12px; border-radius: 10px; }
+.report-grid .stat .v { font-size: 19px; line-height: 1.15; }
+.report-grid .stat .l { margin-top: 1px; }
 .compact-log { display: grid; gap: 8px; }
 
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--card-2); border: 1px solid var(--accent); color: var(--txt); padding: 10px 18px; border-radius: 999px; box-shadow: var(--shadow); opacity: 0; transition: opacity .25s, transform .25s; z-index: 50; pointer-events: none; }
@@ -139,5 +140,7 @@ textarea { resize: vertical; min-height: 60px; }
 
 @media (max-width: 720px) {
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
-  .report-grid { grid-template-columns: 1fr; }
+  .report-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .report-grid .stat { padding: 9px 10px; }
+  .report-grid .stat .v { font-size: 17px; overflow-wrap: anywhere; }
 }
