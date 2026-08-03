@@ -38,6 +38,7 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .btn:hover { filter: brightness(1.08); }
 .btn:active { transform: scale(.97); }
+.btn:disabled { cursor: default; opacity: .45; filter: none; }
 .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--txt-dim); }
 .btn.ghost:hover { color: var(--txt); border-color: var(--accent); }
 .btn.sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; }

@@ -27,9 +27,17 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '
 function ensureDb() {
   if (!db) throw new Error('Supabase 未配置，请检查 GitHub Actions Secrets：SUPABASE_URL / SUPABASE_ANON_KEY，并重新运行 Pages 部署');
 }
-const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
+const SUBJECTS = ['语文', '数学', '英语'];
+const SUBJECT_KEYS = { '语文': 'chinese', '数学': 'math', '英语': 'english' };
+const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'money', 'rewardConfig', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
 const DEFAULT_DATA = () => ({
-  displayName: '', grade: '', xp: 0, checkins: [],
+  displayName: '', grade: '', xp: 0, money: 0,
+  rewardConfig: {
+    '语文': { reward: 2, penalty: 1 },
+    '数学': { reward: 2, penalty: 1 },
+    '英语': { reward: 2, penalty: 1 },
+  },
+  checkins: [],
   homework: [], poetry: [], words: [], wrong: [], log: [], createdAt: new Date().toISOString(),
 });
 function clientData(data) {
@@ -44,6 +52,8 @@ function publicFrom(profile, data, space) {
     displayName: data.displayName || profile.display_name || profile.email,
     grade: data.grade || profile.grade || '',
     xp: data.xp || 0,
+    money: data.money || 0,
+    rewardConfig: normalizeRewardConfig(data.rewardConfig),
     checkins: data.checkins || [],
     homework: data.homework || [],
     poetry: data.poetry || [],
@@ -53,6 +63,17 @@ function publicFrom(profile, data, space) {
     createdAt: data.createdAt || profile.created_at || new Date().toISOString(),
     _space: space || null,
   };
+}
+function normalizeRewardConfig(cfg) {
+  const defaults = DEFAULT_DATA().rewardConfig;
+  const out = {};
+  SUBJECTS.forEach(s => {
+    out[s] = {
+      reward: Number(cfg && cfg[s] && cfg[s].reward != null ? cfg[s].reward : defaults[s].reward),
+      penalty: Number(cfg && cfg[s] && cfg[s].penalty != null ? cfg[s].penalty : defaults[s].penalty),
+    };
+  });
+  return out;
 }
 async function ensureProfile(authUser, meta = {}) {
   let { data: profile, error } = await db.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
@@ -171,11 +192,10 @@ function levelInfo(xp) {
   return { level, within, next: level * 100, pct: Math.min(100, Math.round(within / 100 * 100)) };
 }
 function masteryInfo() {
-  const u = state.user;
-  const all = [...(u.poetry || []), ...(u.words || []), ...(u.wrong || [])];
-  if (!all.length) return { pct: 0, mastered: 0, total: 0 };
-  const mastered = all.filter(x => x.status === 'mastered').length;
-  return { pct: Math.round(mastered / all.length * 100), mastered, total: all.length };
+  const items = state.user.homework || [];
+  if (!items.length) return { pct: 0, mastered: 0, total: 0 };
+  const completed = items.filter(x => homeworkStatus(x) === 'completed').length;
+  return { pct: Math.round(completed / items.length * 100), mastered: completed, total: items.length };
 }
 function statusPill(it) {
   if (it.status === 'mastered') return '<span class="pill master">已掌握</span>';
@@ -193,7 +213,7 @@ function renderOverview() {
   const u = state.user;
   const lv = levelInfo(u.xp);
   $('#ov-level').textContent = 'Lv.' + lv.level;
-  $('#ov-streak').textContent = computeStreak(u.checkins) + '🔥';
+  $('#ov-streak').textContent = '¥' + Number(u.money || 0).toFixed(2).replace(/\.00$/, '');
   const m = masteryInfo();
   $('#ov-master').textContent = m.pct + '%';
   $('#ov-xp').textContent = u.xp || 0;
@@ -201,51 +221,107 @@ function renderOverview() {
   $('#ov-xp-bar').style.width = lv.pct + '%';
   $('#ov-xp-label').textContent = '距 Lv.' + (lv.level + 1);
 
-  const due = dueItems();
-  $('#ov-due').textContent = '今日待复习：' + due.length;
+  const todayPending = (u.homework || []).filter(h => homeworkStatus(h) === 'pending' && (!h.due || h.due <= today()));
+  $('#ov-due').textContent = '今日待完成作业：' + todayPending.length;
 
-  // 今日复习队列（概览）
   const box = $('#ov-due-list');
-  if (!due.length) { box.innerHTML = '<div class="empty">今天没有待复习的内容，去加一点吧 🎉</div>'; }
+  if (!todayPending.length) { box.innerHTML = '<div class="empty">今天没有待处理作业。</div>'; }
   else {
-    box.innerHTML = due.slice(0, 6).map(it => {
-      const title = it.kind === 'poetry' ? it.title : it.kind === 'words' ? it.word : it.subject;
-      return `<div class="item review-card"><div class="top"><span class="title">${esc(title)}</span>
-        <span class="meta">${it.kind === 'poetry' ? '古诗文' : it.kind === 'words' ? '单词' : '错题'}</span></div></div>`;
+    box.innerHTML = todayPending.slice(0, 8).map(h => {
+      return `<div class="item review-card"><div class="top"><span class="title">${esc(h.title)}</span>
+        <span class="meta">${esc(h.subject || '作业')} · ${h.due || '未设日期'}</span></div></div>`;
     }).join('');
   }
-  // 导航红点
-  const badge = $('#nav-review-badge');
-  if (due.length) { badge.textContent = due.length; badge.classList.remove('hidden'); }
-  else badge.classList.add('hidden');
+}
+
+function homeworkStatus(h) {
+  if (h.status) return h.status;
+  return h.done ? 'completed' : 'pending';
+}
+function subjectConfig(subject) {
+  return (state.user.rewardConfig && state.user.rewardConfig[subject]) || { reward: 0, penalty: 0 };
+}
+function moneyText(n) {
+  const v = Number(n || 0);
+  return (v >= 0 ? '+¥' : '-¥') + Math.abs(v).toFixed(2).replace(/\.00$/, '');
+}
+function homeworkStats(subject) {
+  const items = (state.user.homework || []).filter(h => !subject || h.subject === subject);
+  const completed = items.filter(h => homeworkStatus(h) === 'completed').length;
+  const missed = items.filter(h => homeworkStatus(h) === 'missed').length;
+  const pending = items.filter(h => homeworkStatus(h) === 'pending').length;
+  const money = items.reduce((sum, h) => sum + Number(h.moneyApplied || 0), 0);
+  return { total: items.length, completed, missed, pending, money };
+}
+function renderStatsBox(selector, subject) {
+  const box = $(selector);
+  if (!box) return;
+  const s = homeworkStats(subject);
+  const label = subject || '全部';
+  box.innerHTML = `
+    <div class="stat"><div class="v">${s.total}</div><div class="l">${label}作业</div></div>
+    <div class="stat"><div class="v master">${s.completed}</div><div class="l">已完成</div></div>
+    <div class="stat"><div class="v flame">${s.pending}</div><div class="l">待处理</div></div>
+    <div class="stat"><div class="v">${moneyText(s.money)}</div><div class="l">奖惩合计</div></div>`;
 }
 
 /* ---------------- 渲染：作业 ---------------- */
-function renderHomework() {
-  const u = state.user;
-  const list = $('#hw-list');
-  const items = (u.homework || []).slice().sort((a, b) => (a.done === b.done ? (a.due || '').localeCompare(b.due || '') : a.done ? 1 : -1));
+function renderHomeworkList(selector, subject) {
+  const list = $(selector);
+  if (!list) return;
+  const items = (state.user.homework || [])
+    .filter(h => !subject || h.subject === subject)
+    .slice()
+    .sort((a, b) => {
+      const sa = homeworkStatus(a), sb = homeworkStatus(b);
+      return sa === sb ? (a.due || '').localeCompare(b.due || '') : sa === 'pending' ? -1 : sb === 'pending' ? 1 : 0;
+    });
   if (!items.length) { list.innerHTML = '<div class="empty">还没有登记作业。</div>'; return; }
   list.innerHTML = items.map(h => {
-    const overdue = !h.done && h.due && h.due < today();
-    const dueToday = !h.done && h.due === today();
+    const status = homeworkStatus(h);
+    const overdue = status === 'pending' && h.due && h.due < today();
+    const dueToday = status === 'pending' && h.due === today();
+    const cfg = subjectConfig(h.subject);
     let dueTag = '';
-    if (h.done) dueTag = '<span class="pill ok">已完成</span>';
+    if (status === 'completed') dueTag = '<span class="pill ok">已完成 ' + moneyText(h.moneyApplied || cfg.reward) + '</span>';
+    else if (status === 'missed') dueTag = '<span class="pill due">未完成 ' + moneyText(h.moneyApplied || -cfg.penalty) + '</span>';
     else if (overdue) dueTag = '<span class="pill due">已逾期 ' + h.due + '</span>';
     else if (dueToday) dueTag = '<span class="pill soon">今天截止</span>';
     else if (h.due) dueTag = '<span class="pill ok">截止 ' + h.due + '</span>';
     const tasks = (h.tasks || []).map(t => `<div class="subtask-list"><div class="st" style="margin:0">
       <input type="checkbox" ${t.done ? 'checked' : ''} data-action="hw-task" data-id="${h.id}" data-tid="${t.id}" />
       <span style="${t.done ? 'text-decoration:line-through;color:var(--txt-dim)' : ''}">${esc(t.text)}</span></div></div>`).join('');
-    return `<div class="item ${h.done ? 'done' : ''}">
+    return `<div class="item ${status !== 'pending' ? 'done' : ''}">
       <div class="top"><span class="title">${esc(h.title)}</span>
         <span class="meta">${esc(h.subject || '')}</span> ${dueTag}</div>
       ${tasks}
       <div class="actions">
-        <button class="btn sm" data-action="hw-done" data-id="${h.id}">${h.done ? '↩ 标记未完成' : '✔ 完成'}</button>
+        <button class="btn sm" data-action="hw-complete" data-id="${h.id}" ${status === 'completed' ? 'disabled' : ''}>完成</button>
+        <button class="btn ghost sm danger" data-action="hw-miss" data-id="${h.id}" ${status === 'missed' ? 'disabled' : ''}>未完成</button>
+        <button class="btn ghost sm" data-action="hw-pending" data-id="${h.id}" ${status === 'pending' ? 'disabled' : ''}>恢复待处理</button>
         <button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}">删除</button>
       </div></div>`;
   }).join('');
+}
+function renderRewardSettings() {
+  const box = $('#reward-settings');
+  if (!box) return;
+  const cfg = normalizeRewardConfig(state.user.rewardConfig);
+  box.innerHTML = SUBJECTS.map(s => `<div style="min-width:180px">
+    <label>${s} 完成奖励</label><input type="number" min="0" step="0.5" data-reward="${s}" value="${cfg[s].reward}" />
+    <label style="margin-top:6px">${s} 未完成扣款</label><input type="number" min="0" step="0.5" data-penalty="${s}" value="${cfg[s].penalty}" />
+  </div>`).join('');
+}
+function renderHomework() {
+  renderRewardSettings();
+  renderStatsBox('#hw-stats', null);
+  renderStatsBox('#hw-stats-chinese', '语文');
+  renderStatsBox('#hw-stats-math', '数学');
+  renderStatsBox('#hw-stats-english', '英语');
+  renderHomeworkList('#hw-list', null);
+  renderHomeworkList('#hw-list-chinese', '语文');
+  renderHomeworkList('#hw-list-math', '数学');
+  renderHomeworkList('#hw-list-english', '英语');
 }
 
 /* ---------------- 渲染：古诗文 / 单词 / 错题 ---------------- */
@@ -313,23 +389,29 @@ function renderReport() {
   const ws = mondayOf(today());
   const log = (u.log || []).filter(l => l.date >= ws);
   const homeworkDone = log.filter(l => l.type === 'hw').length;
-  const reviews = log.filter(l => l.type === 'review').length;
-  const masters = log.filter(l => l.type === 'master').length;
+  const homeworkMissed = log.filter(l => l.type === 'hw_miss').length;
+  const rewardWeek = log
+    .filter(l => l.type === 'hw' || l.type === 'hw_miss')
+    .reduce((s, l) => {
+      const m = String(l.detail || '').match(/([+-])¥([0-9.]+)/);
+      if (!m) return s;
+      return s + (m[1] === '-' ? -1 : 1) * Number(m[2]);
+    }, 0);
   const checkinDays = new Set((u.checkins || []).filter(d => d >= ws)).size;
   const xpWeek = log.reduce((s, l) => s + (l.xp || 0), 0);
 
   $('#rp-week').textContent = '本周（' + ws + ' 起）';
   $('#rp-grid').innerHTML = `
     <div class="stat"><div class="v">${homeworkDone}</div><div class="l">完成作业</div></div>
-    <div class="stat"><div class="v">${reviews}</div><div class="l">复习次数</div></div>
-    <div class="stat"><div class="v">${masters}</div><div class="l">新掌握</div></div>
+    <div class="stat"><div class="v">${homeworkMissed}</div><div class="l">未完成作业</div></div>
+    <div class="stat"><div class="v">${moneyText(rewardWeek)}</div><div class="l">本周奖惩</div></div>
     <div class="stat"><div class="v">${checkinDays}🔥</div><div class="l">打卡天数</div></div>
     <div class="stat"><div class="v">${xpWeek}</div><div class="l">本周经验</div></div>
-    <div class="stat"><div class="v">${computeStreak(u.checkins)}🔥</div><div class="l">连续打卡</div></div>`;
+    <div class="stat"><div class="v">¥${Number(u.money || 0).toFixed(2).replace(/\.00$/, '')}</div><div class="l">奖励余额</div></div>`;
 
   const recent = (u.log || []).slice(-12).reverse();
   $('#rp-log').innerHTML = recent.length ? recent.map(l => {
-    const name = { hw: '完成作业', review: '复习', master: '掌握一项', checkin: '打卡', add: '新增' }[l.type] || l.type;
+    const name = { hw: '完成作业', hw_miss: '未完成作业', hw_pending: '恢复待处理', review: '复习', master: '掌握一项', checkin: '打卡', add: '新增' }[l.type] || l.type;
     return `<div class="item" style="margin-bottom:8px"><div class="top"><span class="title">${esc(name)}</span>
       <span class="meta">${l.date} · +${l.xp || 0} XP</span></div>
       ${l.detail ? `<div class="body">${esc(l.detail)}</div>` : ''}</div>`;
@@ -345,10 +427,6 @@ function renderAll() {
   renderSpace();
   renderOverview();
   renderHomework();
-  renderPoetry();
-  renderWords();
-  renderWrong();
-  renderReview();
   renderReport();
 }
 
@@ -373,6 +451,29 @@ function addReviewItem(arr, item, label) {
   state.user[arr] = state.user[arr] || [];
   state.user[arr].push(item);
   award(2, 'add', label);
+}
+function settleHomework(h, nextStatus) {
+  const prevAmount = Number(h.moneyApplied || 0);
+  let nextAmount = 0;
+  const cfg = subjectConfig(h.subject);
+  if (nextStatus === 'completed') nextAmount = Number(cfg.reward || 0);
+  if (nextStatus === 'missed') nextAmount = -Number(cfg.penalty || 0);
+
+  state.user.money = Number(state.user.money || 0) - prevAmount + nextAmount;
+  h.status = nextStatus;
+  h.done = nextStatus === 'completed';
+  h.moneyApplied = nextAmount;
+  h.settledAt = nextStatus === 'pending' ? null : new Date().toISOString();
+  h.updatedAt = new Date().toISOString();
+
+  if (nextStatus === 'completed') {
+    award(15, 'hw', `${h.subject}：${h.title} 完成 ${moneyText(nextAmount)}`);
+  } else if (nextStatus === 'missed') {
+    award(0, 'hw_miss', `${h.subject}：${h.title} 未完成 ${moneyText(nextAmount)}`);
+  } else {
+    state.user.log = state.user.log || [];
+    state.user.log.push({ date: today(), type: 'hw_pending', detail: `${h.subject}：${h.title} 恢复待处理`, xp: 0 });
+  }
 }
 function doReview(kind, id, remembered) {
   const map = { poetry: 'poetry', words: 'words', wrong: 'wrong' };
@@ -424,21 +525,32 @@ function renderPendingSubtasks() {
   }));
 }
 $('#hw-save').addEventListener('click', () => {
-  const subject = $('#hw-subject').value.trim();
+  const subject = SUBJECTS.includes($('#hw-subject').value) ? $('#hw-subject').value : '语文';
   const title = $('#hw-title').value.trim();
   const due = $('#hw-due').value;
   if (!title) { toast('请填写作业内容'); return; }
   state.user.homework = state.user.homework || [];
-  state.user.homework.push({ id: uid(), subject, title, due, done: false, tasks: pendingSubtasks.slice() });
+  state.user.homework.push({ id: uid(), subject, title, due, status: 'pending', done: false, moneyApplied: 0, tasks: pendingSubtasks.slice(), createdAt: new Date().toISOString() });
   award(2, 'add', title);
   pendingSubtasks = [];
-  $('#hw-subject').value = ''; $('#hw-title').value = ''; $('#hw-due').value = '';
+  $('#hw-subject').value = '语文'; $('#hw-title').value = ''; $('#hw-due').value = '';
   renderPendingSubtasks();
   sync().then(() => { renderAll(); toast('已登记作业'); });
 });
 
-// 古诗文
-$('#po-save').addEventListener('click', () => {
+$('#reward-save').addEventListener('click', () => {
+  const cfg = normalizeRewardConfig(state.user.rewardConfig);
+  SUBJECTS.forEach(s => {
+    const reward = Number(($(`[data-reward="${s}"]`) || {}).value || 0);
+    const penalty = Number(($(`[data-penalty="${s}"]`) || {}).value || 0);
+    cfg[s] = { reward: Math.max(0, reward), penalty: Math.max(0, penalty) };
+  });
+  state.user.rewardConfig = cfg;
+  sync().then(() => { renderAll(); toast('奖励设置已保存'); });
+});
+
+// 旧复习模块入口保留兼容，不在当前界面显示
+if ($('#po-save')) $('#po-save').addEventListener('click', () => {
   const title = $('#po-title').value.trim();
   const content = $('#po-content').value.trim();
   if (!title || !content) { toast('请填写篇名和原文'); return; }
@@ -446,8 +558,7 @@ $('#po-save').addEventListener('click', () => {
   $('#po-title').value = ''; $('#po-author').value = ''; $('#po-content').value = '';
   sync().then(() => { renderAll(); toast('已加入古诗文复习'); });
 });
-// 单词
-$('#wd-save').addEventListener('click', () => {
+if ($('#wd-save')) $('#wd-save').addEventListener('click', () => {
   const word = $('#wd-word').value.trim();
   const mean = $('#wd-mean').value.trim();
   if (!word || !mean) { toast('请填写单词和释义'); return; }
@@ -455,8 +566,7 @@ $('#wd-save').addEventListener('click', () => {
   $('#wd-word').value = ''; $('#wd-mean').value = '';
   sync().then(() => { renderAll(); toast('已加入单词复习'); });
 });
-// 错题
-$('#wq-save').addEventListener('click', () => {
+if ($('#wq-save')) $('#wq-save').addEventListener('click', () => {
   const subject = $('#wq-subject').value.trim();
   const question = $('#wq-question').value.trim();
   const correct = $('#wq-correct').value.trim();
@@ -527,12 +637,12 @@ document.addEventListener('click', e => {
   if (!t) return;
   const a = t.dataset.action;
   const id = t.dataset.id;
-  if (a === 'hw-done') {
+  if (a === 'hw-complete' || a === 'hw-miss' || a === 'hw-pending') {
     const h = state.user.homework.find(x => x.id === id);
     if (!h) return;
-    h.done = !h.done;
-    if (h.done) award(15, 'hw', h.title);
-    sync().then(renderAll);
+    const nextStatus = a === 'hw-complete' ? 'completed' : a === 'hw-miss' ? 'missed' : 'pending';
+    settleHomework(h, nextStatus);
+    sync().then(() => { renderAll(); toast(nextStatus === 'completed' ? '已完成，奖励已入账' : nextStatus === 'missed' ? '已标记未完成，扣款已记录' : '已恢复待处理'); });
   } else if (a === 'hw-task') {
     // checkbox 变化在 change 事件处理更稳，这里仅兜底
   } else if (a === 'hw-del') {
