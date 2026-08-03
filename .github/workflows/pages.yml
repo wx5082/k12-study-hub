@@ -30,7 +30,6 @@ jobs:
           node-version: 20
 
       - name: Generate Supabase config
-        working-directory: learning-platform
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -42,7 +41,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: learning-platform/public
+          path: public
 
       - name: Deploy to GitHub Pages
         id: deployment
