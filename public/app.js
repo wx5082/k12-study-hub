@@ -25,7 +25,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '
 
 /* ---------------- Supabase 数据层 ---------------- */
 function ensureDb() {
-  if (!db) throw new Error('Supabase 未配置，请检查 Cloudflare 环境变量 SUPABASE_URL / SUPABASE_ANON_KEY');
+  if (!db) throw new Error('Supabase 未配置，请检查 GitHub Actions Secrets：SUPABASE_URL / SUPABASE_ANON_KEY，并重新运行 Pages 部署');
 }
 const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
 const DEFAULT_DATA = () => ({
