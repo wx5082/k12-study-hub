@@ -17,6 +17,12 @@ const db = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
 /* ---------------- 工具 ---------------- */
 function fmt(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function today() { return fmt(new Date()); }
+function fmtTime(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '';
+  return fmt(d) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
 function addDaysStr(s, n) { const d = new Date(s + 'T00:00:00'); d.setDate(d.getDate() + n); return fmt(d); }
 function daysBetween(a, b) { return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000); }
 function mondayOf(s) { const d = new Date(s + 'T00:00:00'); const day = (d.getDay() + 6) % 7; d.setDate(d.getDate() - day); return fmt(d); }
@@ -288,12 +294,14 @@ function renderHomeworkList(selector, subject) {
     else if (overdue) dueTag = '<span class="pill due">已逾期 ' + h.due + '</span>';
     else if (dueToday) dueTag = '<span class="pill soon">今天截止</span>';
     else if (h.due) dueTag = '<span class="pill ok">截止 ' + h.due + '</span>';
+    const doneTime = status === 'completed' && h.completedAt ? `<div class="body">完成时间：${esc(fmtTime(h.completedAt))}</div>` : '';
     const tasks = (h.tasks || []).map(t => `<div class="subtask-list"><div class="st" style="margin:0">
       <input type="checkbox" ${t.done ? 'checked' : ''} data-action="hw-task" data-id="${h.id}" data-tid="${t.id}" />
       <span style="${t.done ? 'text-decoration:line-through;color:var(--txt-dim)' : ''}">${esc(t.text)}</span></div></div>`).join('');
     return `<div class="item ${status !== 'pending' ? 'done' : ''}">
       <div class="top"><span class="title">${esc(h.title)}</span>
         <span class="meta">${esc(h.subject || '')}</span> ${dueTag}</div>
+      ${doneTime}
       ${tasks}
       <div class="actions">
         <button class="btn sm" data-action="hw-complete" data-id="${h.id}" ${status === 'completed' ? 'disabled' : ''}>完成</button>
@@ -409,7 +417,8 @@ function renderReport() {
     <div class="stat"><div class="v">${xpWeek}</div><div class="l">本周经验</div></div>
     <div class="stat"><div class="v">¥${Number(u.money || 0).toFixed(2).replace(/\.00$/, '')}</div><div class="l">奖励余额</div></div>`;
 
-  const recent = (u.log || []).slice(-12).reverse();
+  const recent = (u.log || []).slice(-6).reverse();
+  $('#rp-log').className = 'compact-log';
   $('#rp-log').innerHTML = recent.length ? recent.map(l => {
     const name = { hw: '完成作业', hw_miss: '未完成作业', hw_pending: '恢复待处理', review: '复习', master: '掌握一项', checkin: '打卡', add: '新增' }[l.type] || l.type;
     return `<div class="item" style="margin-bottom:8px"><div class="top"><span class="title">${esc(name)}</span>
@@ -428,6 +437,7 @@ function renderAll() {
   renderOverview();
   renderHomework();
   renderReport();
+  ensureHomeworkDefaults();
 }
 
 function renderSpace() {
@@ -444,6 +454,10 @@ function renderSpace() {
     status.textContent = '当前为个人数据。创建共享空间后，多个账号可用同一个共享码共同更新这份学习数据。';
     current.classList.add('hidden');
   }
+}
+function ensureHomeworkDefaults() {
+  const due = $('#hw-due');
+  if (due && !due.value) due.value = today();
 }
 
 /* ---------------- 增删改操作 ---------------- */
@@ -464,6 +478,7 @@ function settleHomework(h, nextStatus) {
   h.done = nextStatus === 'completed';
   h.moneyApplied = nextAmount;
   h.settledAt = nextStatus === 'pending' ? null : new Date().toISOString();
+  h.completedAt = nextStatus === 'completed' ? new Date().toISOString() : null;
   h.updatedAt = new Date().toISOString();
 
   if (nextStatus === 'completed') {
@@ -527,13 +542,13 @@ function renderPendingSubtasks() {
 $('#hw-save').addEventListener('click', () => {
   const subject = SUBJECTS.includes($('#hw-subject').value) ? $('#hw-subject').value : '语文';
   const title = $('#hw-title').value.trim();
-  const due = $('#hw-due').value;
+  const due = $('#hw-due').value || today();
   if (!title) { toast('请填写作业内容'); return; }
   state.user.homework = state.user.homework || [];
   state.user.homework.push({ id: uid(), subject, title, due, status: 'pending', done: false, moneyApplied: 0, tasks: pendingSubtasks.slice(), createdAt: new Date().toISOString() });
   award(2, 'add', title);
   pendingSubtasks = [];
-  $('#hw-subject').value = '语文'; $('#hw-title').value = ''; $('#hw-due').value = '';
+  $('#hw-subject').value = '语文'; $('#hw-title').value = ''; $('#hw-due').value = today();
   renderPendingSubtasks();
   sync().then(() => { renderAll(); toast('已登记作业'); });
 });
@@ -717,6 +732,7 @@ $('#authForm').addEventListener('submit', async e => {
 
 // 启动：恢复 Supabase 浏览器会话
 setAuthMode('login');
+ensureHomeworkDefaults();
 loadCurrentUser().then(user => {
   if (!user) return;
   $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');

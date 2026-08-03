@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>学习台 StudyDeck · 多人在线版</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20260803175800" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js?v=20260803174042"></script>
+  <script src="config.js?v=20260803175800"></script>
 </head>
 <body>
   <!-- 登录 / 注册 -->
@@ -55,7 +55,7 @@
       <button data-tab="homework-chinese">语文</button>
       <button data-tab="homework-math">数学</button>
       <button data-tab="homework-english">英语</button>
-      <button data-tab="report">本周战报</button>
+      <button data-tab="report">本周简报</button>
     </div>
 
     <!-- 总览 -->
@@ -167,18 +167,18 @@
     <!-- 战报 -->
     <section class="section" data-section="report">
       <div class="card">
-        <h2>🏆 本周战报</h2>
+        <h2>本周简报</h2>
         <div class="hint" id="rp-week">本周</div>
         <div class="report-grid" id="rp-grid"></div>
       </div>
       <div class="card">
-        <h2>📈 最近动态</h2>
+        <h2>最近动态</h2>
         <div id="rp-log"></div>
       </div>
     </section>
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260803174042"></script>
+  <script src="app.js?v=20260803175800"></script>
 </body>
 </html>

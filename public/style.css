@@ -1,24 +1,24 @@
 :root {
-  --bg: #0f1419;
-  --bg-soft: #171f2b;
-  --card: #1c2634;
-  --card-2: #222e40;
-  --line: #2c3a4f;
-  --txt: #e7eef7;
-  --txt-dim: #9fb0c3;
-  --accent: #4f9dff;
-  --accent-2: #7c5cff;
-  --green: #36d399;
-  --red: #ff6b6b;
-  --amber: #ffb454;
-  --pink: #ff7eb6;
+  --bg: #f6f8fb;
+  --bg-soft: #eef3f8;
+  --card: #ffffff;
+  --card-2: #f8fafc;
+  --line: #dbe3ee;
+  --txt: #172033;
+  --txt-dim: #637083;
+  --accent: #2563eb;
+  --accent-2: #14b8a6;
+  --green: #138a5d;
+  --red: #dc2626;
+  --amber: #b7791f;
+  --pink: #db2777;
   --radius: 16px;
-  --shadow: 0 8px 24px rgba(0,0,0,.35);
+  --shadow: 0 10px 28px rgba(25,42,70,.08);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-  background: radial-gradient(1200px 600px at 80% -10%, #1b2740 0%, var(--bg) 60%);
+  background: linear-gradient(180deg, #eef6ff 0%, var(--bg) 300px);
   color: var(--txt);
   min-height: 100vh;
   line-height: 1.5;
@@ -61,7 +61,7 @@ textarea { resize: vertical; min-height: 60px; }
 /* ---------- 主框架 ---------- */
 .app { max-width: 1080px; margin: 0 auto; padding: 0 16px 60px; }
 .topbar { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(10px);
-  background: rgba(15,20,25,.82); border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.88); border-bottom: 1px solid var(--line);
   display: flex; align-items: center; gap: 14px; padding: 12px 16px; margin: 0 -16px 18px; }
 .topbar .brand { font-weight: 800; font-size: 17px; display: flex; align-items: center; gap: 8px; }
 .topbar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; font-size: 16px; margin: 0; }
@@ -111,7 +111,7 @@ textarea { resize: vertical; min-height: 60px; }
 .item .title { font-weight: 600; }
 .item .meta { font-size: 12px; color: var(--txt-dim); margin-left: auto; }
 .item .body { font-size: 13px; color: var(--txt-dim); margin-top: 6px; white-space: pre-wrap; }
-.item.done { opacity: .55; }
+.item.done { opacity: .72; }
 .item .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
 .pill.due { background: rgba(255,107,107,.18); color: var(--red); }
@@ -129,9 +129,10 @@ textarea { resize: vertical; min-height: 60px; }
 .flip-btn { margin-top: 8px; }
 
 /* 战报 */
-.report-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .report-grid .stat { text-align: left; }
-.report-grid .stat .v { font-size: 22px; }
+.report-grid .stat .v { font-size: 20px; }
+.compact-log { display: grid; gap: 8px; }
 
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--card-2); border: 1px solid var(--accent); color: var(--txt); padding: 10px 18px; border-radius: 999px; box-shadow: var(--shadow); opacity: 0; transition: opacity .25s, transform .25s; z-index: 50; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
