@@ -4,11 +4,15 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-let state = { token: null, user: null };
+let state = { token: null, authUser: null, user: null };
 let revealed = new Set();      // 复习中已翻看答案的 id
 let rvFilter = 'all';          // 复习页筛选
 let pendingSubtasks = [];      // 作业登记时的临时步骤
 let refreshTimer = null;       // 多端同步轮询
+const SUPABASE_CONFIG = window.K12_SUPABASE || {};
+const db = window.supabase && SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey
+  ? window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
+  : null;
 
 /* ---------------- 工具 ---------------- */
 function fmt(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
@@ -19,28 +23,96 @@ function mondayOf(s) { const d = new Date(s + 'T00:00:00'); const day = (d.getDa
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
-/* ---------------- 接口 ---------------- */
-async function api(path, method = 'GET', body) {
-  const opt = { method, headers: {} };
-  if (state.token) opt.headers['Authorization'] = 'Bearer ' + state.token;
-  if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
-  const res = await fetch(path, opt);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || ('请求失败 ' + res.status));
-  return data;
+/* ---------------- Supabase 数据层 ---------------- */
+function ensureDb() {
+  if (!db) throw new Error('Supabase 未配置，请检查 Cloudflare 环境变量 SUPABASE_URL / SUPABASE_ANON_KEY');
 }
 const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
+const DEFAULT_DATA = () => ({
+  displayName: '', grade: '', xp: 0, checkins: [],
+  homework: [], poetry: [], words: [], wrong: [], log: [], createdAt: new Date().toISOString(),
+});
+function clientData(data) {
+  const out = {};
+  SYNC_FIELDS.forEach(f => out[f] = data && data[f] != null ? data[f] : DEFAULT_DATA()[f]);
+  out.createdAt = data && data.createdAt ? data.createdAt : new Date().toISOString();
+  return out;
+}
+function publicFrom(profile, data, space) {
+  return {
+    username: profile.email,
+    displayName: data.displayName || profile.display_name || profile.email,
+    grade: data.grade || profile.grade || '',
+    xp: data.xp || 0,
+    checkins: data.checkins || [],
+    homework: data.homework || [],
+    poetry: data.poetry || [],
+    words: data.words || [],
+    wrong: data.wrong || [],
+    log: data.log || [],
+    createdAt: data.createdAt || profile.created_at || new Date().toISOString(),
+    _space: space || null,
+  };
+}
+async function ensureProfile(authUser, meta = {}) {
+  let { data: profile, error } = await db.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
+  if (error) throw error;
+  if (profile) return profile;
+  const base = DEFAULT_DATA();
+  base.displayName = meta.displayName || authUser.email;
+  base.grade = meta.grade || '';
+  const insert = {
+    id: authUser.id,
+    email: authUser.email,
+    display_name: base.displayName,
+    grade: base.grade,
+    data: base,
+  };
+  const r = await db.from('profiles').insert(insert).select('*').single();
+  if (r.error) throw r.error;
+  return r.data;
+}
+async function loadCurrentUser() {
+  ensureDb();
+  const sessionResult = await db.auth.getSession();
+  const session = sessionResult.data && sessionResult.data.session;
+  if (!session) return null;
+  state.authUser = session.user;
+  state.token = session.access_token;
+  const profile = await ensureProfile(session.user);
+  let activeSpace = null;
+  let data = profile.data || DEFAULT_DATA();
+  if (profile.active_space) {
+    const r = await db.from('spaces').select('code,name,owner_id,data,space_members!inner(role)').eq('code', profile.active_space).eq('space_members.user_id', session.user.id).maybeSingle();
+    if (!r.error && r.data) {
+      activeSpace = { code: r.data.code, name: r.data.name, role: r.data.space_members[0].role, owner: r.data.owner_id };
+      data = r.data.data || DEFAULT_DATA();
+    }
+  }
+  state.user = publicFrom(profile, data, activeSpace);
+  return state.user;
+}
 async function sync() {
   const payload = {};
   SYNC_FIELDS.forEach(f => payload[f] = state.user[f]);
-  const r = await api('/api/sync', 'POST', payload);
-  state.user = r.user;
+  if (state.user._space) {
+    const { error } = await db.from('spaces').update({ data: clientData(payload), updated_at: new Date().toISOString() }).eq('code', state.user._space.code);
+    if (error) throw error;
+  } else {
+    const { error } = await db.from('profiles').update({
+      display_name: payload.displayName,
+      grade: payload.grade,
+      data: clientData(payload),
+      updated_at: new Date().toISOString(),
+    }).eq('id', state.authUser.id);
+    if (error) throw error;
+  }
+  await loadCurrentUser();
 }
 async function refreshState(silent = true) {
-  if (!state.token) return;
+  if (!state.authUser) return;
   try {
-    const r = await api('/api/state');
-    state.user = r.user;
+    await loadCurrentUser();
     renderAll();
     if (!silent) toast('已同步最新数据');
   } catch (e) {
@@ -54,6 +126,12 @@ function startRefresh() {
 function stopRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = null;
+}
+function genSpaceCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
 }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -402,8 +480,20 @@ $('#btn-checkin').addEventListener('click', () => {
 $('#sp-create').addEventListener('click', async () => {
   const name = $('#sp-name').value.trim() || ((state.user.displayName || state.user.username) + '的学习空间');
   try {
-    const r = await api('/api/space/create', 'POST', { name, seed: state.user });
-    state.user = r.user;
+    let code = genSpaceCode();
+    for (let i = 0; i < 5; i++) {
+      const exists = await db.from('spaces').select('code').eq('code', code).maybeSingle();
+      if (!exists.data) break;
+      code = genSpaceCode();
+    }
+    const seed = clientData(state.user);
+    const created = await db.from('spaces').insert({ code, name, owner_id: state.authUser.id, data: seed }).select('code').single();
+    if (created.error) throw created.error;
+    const member = await db.from('space_members').insert({ code, user_id: state.authUser.id, role: 'owner' });
+    if (member.error) throw member.error;
+    const profile = await db.from('profiles').update({ active_space: code }).eq('id', state.authUser.id);
+    if (profile.error) throw profile.error;
+    await loadCurrentUser();
     renderAll();
     toast('共享空间已创建');
   } catch (e) { toast(e.message); }
@@ -412,8 +502,11 @@ $('#sp-join').addEventListener('click', async () => {
   const code = $('#sp-code').value.trim().toUpperCase();
   if (!code) { toast('请输入共享码'); return; }
   try {
-    const r = await api('/api/space/join', 'POST', { code });
-    state.user = r.user;
+    const joined = await db.rpc('join_space', { join_code: code });
+    if (joined.error) throw joined.error;
+    const profile = await db.from('profiles').update({ active_space: code }).eq('id', state.authUser.id);
+    if (profile.error) throw profile.error;
+    await loadCurrentUser();
     $('#sp-code').value = '';
     renderAll();
     toast('已加入共享空间');
@@ -422,9 +515,9 @@ $('#sp-join').addEventListener('click', async () => {
 
 // 退出
 $('#btn-logout').addEventListener('click', async () => {
-  try { await api('/api/logout', 'POST'); } catch (e) {}
+  try { await db.auth.signOut(); } catch (e) {}
   stopRefresh();
-  state = { token: null, user: null };
+  state = { token: null, authUser: null, user: null };
   $('#app').classList.add('hidden'); $('#auth').classList.remove('hidden');
 });
 
@@ -485,19 +578,40 @@ function setAuthMode(m) {
 $('#au-toggle').addEventListener('click', () => setAuthMode(authMode === 'login' ? 'register' : 'login'));
 $('#authForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const username = $('#au-username').value.trim();
+  const email = $('#au-username').value.trim();
   const password = $('#au-password').value;
   $('#au-err').textContent = '';
   try {
+    ensureDb();
     let r;
-    if (authMode === 'login') r = await api('/api/login', 'POST', { username, password });
-    else r = await api('/api/register', 'POST', { username, password, displayName: $('#au-display').value.trim(), grade: $('#au-grade').value.trim() });
-    state.token = r.token; state.user = r.user;
+    if (authMode === 'login') {
+      r = await db.auth.signInWithPassword({ email, password });
+    } else {
+      r = await db.auth.signUp({
+        email,
+        password,
+        options: { data: { displayName: $('#au-display').value.trim(), grade: $('#au-grade').value.trim() } },
+      });
+    }
+    if (r.error) throw r.error;
+    if (!r.data.session) throw new Error('注册成功，请先到邮箱完成确认，或在 Supabase Auth 里关闭 Confirm email 后再登录');
+    state.authUser = r.data.user;
+    state.token = r.data.session.access_token;
+    await ensureProfile(r.data.user, { displayName: $('#au-display').value.trim(), grade: $('#au-grade').value.trim() });
+    await loadCurrentUser();
     $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
     renderAll();
     startRefresh();
   } catch (err) { $('#au-err').textContent = err.message; }
 });
 
-// 启动：尝试恢复已有会话（刷新后保持登录由浏览器决定，这里默认重新登录）
+// 启动：恢复 Supabase 浏览器会话
 setAuthMode('login');
+loadCurrentUser().then(user => {
+  if (!user) return;
+  $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
+  renderAll();
+  startRefresh();
+}).catch(err => {
+  $('#au-err').textContent = err.message;
+});

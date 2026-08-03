@@ -2,3 +2,4 @@ node_modules/
 data/users.json
 .DS_Store
 *.log
+public/config.js

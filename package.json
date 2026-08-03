@@ -1,9 +1,10 @@
 {
   "name": "k12-study-hub-server",
   "version": "1.0.0",
-  "description": "K12 学习台 — 多用户、数据持久化的服务端（仅用 Node 内置模块，零依赖）",
+  "description": "K12 学习台 — Cloudflare Pages + Supabase 多端共享学习平台",
   "main": "server.js",
   "scripts": {
+    "build": "node scripts/build-config.js",
     "start": "node server.js"
   },
   "dependencies": {
