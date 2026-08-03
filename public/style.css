@@ -1,0 +1,141 @@
+:root {
+  --bg: #0f1419;
+  --bg-soft: #171f2b;
+  --card: #1c2634;
+  --card-2: #222e40;
+  --line: #2c3a4f;
+  --txt: #e7eef7;
+  --txt-dim: #9fb0c3;
+  --accent: #4f9dff;
+  --accent-2: #7c5cff;
+  --green: #36d399;
+  --red: #ff6b6b;
+  --amber: #ffb454;
+  --pink: #ff7eb6;
+  --radius: 16px;
+  --shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  background: radial-gradient(1200px 600px at 80% -10%, #1b2740 0%, var(--bg) 60%);
+  color: var(--txt);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+button { font-family: inherit; cursor: pointer; border: none; }
+input, textarea, select {
+  font-family: inherit; font-size: 14px;
+  background: var(--bg-soft); color: var(--txt);
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; outline: none;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 60px; }
+.btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff; padding: 10px 16px; border-radius: 10px; font-weight: 600;
+  transition: transform .08s ease, filter .2s ease;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: scale(.97); }
+.btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--txt-dim); }
+.btn.ghost:hover { color: var(--txt); border-color: var(--accent); }
+.btn.sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
+.btn.danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--card-2); color: var(--txt-dim); }
+.hidden { display: none !important; }
+
+/* ---------- 登录页 ---------- */
+.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+.auth-card { width: 100%; max-width: 380px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); }
+.auth-card h1 { font-size: 22px; margin-bottom: 4px; }
+.auth-card .sub { color: var(--txt-dim); font-size: 13px; margin-bottom: 20px; }
+.auth-card label { display: block; font-size: 13px; color: var(--txt-dim); margin: 12px 0 6px; }
+.auth-card .btn { width: 100%; margin-top: 18px; }
+.auth-switch { text-align: center; margin-top: 16px; font-size: 13px; color: var(--txt-dim); }
+.auth-switch a { color: var(--accent); cursor: pointer; }
+.auth-err { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; }
+.logo-dot { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: grid; place-items: center; font-size: 22px; margin-bottom: 14px; }
+
+/* ---------- 主框架 ---------- */
+.app { max-width: 1080px; margin: 0 auto; padding: 0 16px 60px; }
+.topbar { position: sticky; top: 0; z-index: 20; backdrop-filter: blur(10px);
+  background: rgba(15,20,25,.82); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 14px; padding: 12px 16px; margin: 0 -16px 18px; }
+.topbar .brand { font-weight: 800; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.topbar .brand .logo-dot { width: 30px; height: 30px; border-radius: 9px; font-size: 16px; margin: 0; }
+.topbar .spacer { flex: 1; }
+.user-chip { display: flex; align-items: center; gap: 10px; }
+.user-chip .nm { text-align: right; line-height: 1.15; }
+.user-chip .nm b { font-size: 14px; }
+.user-chip .nm span { font-size: 12px; color: var(--txt-dim); }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-2), var(--pink)); display: grid; place-items: center; font-weight: 700; }
+
+.nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.nav button { background: var(--card); border: 1px solid var(--line); color: var(--txt-dim); padding: 8px 14px; border-radius: 999px; font-size: 14px; }
+.nav button.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border-color: transparent; }
+.nav .badge { background: var(--red); color: #fff; border-radius: 999px; font-size: 11px; padding: 0 6px; margin-left: 4px; }
+
+.section { display: none; }
+.section.active { display: block; animation: fade .2s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.card h2 { font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.card .hint { color: var(--txt-dim); font-size: 13px; margin-bottom: 14px; }
+
+/* 概览统计 */
+.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.stat { background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; text-align: center; }
+.stat .v { font-size: 26px; font-weight: 800; }
+.stat .l { font-size: 12px; color: var(--txt-dim); margin-top: 2px; }
+.stat .v.flame { color: var(--amber); }
+.stat .v.lvl { color: var(--accent); }
+.stat .v.master { color: var(--green); }
+.progress { height: 10px; background: var(--bg-soft); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+.progress > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
+/* 表单 */
+.form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.form-row > div { display: flex; flex-direction: column; gap: 4px; }
+.form-row label { font-size: 12px; color: var(--txt-dim); }
+.subtask-input { display: flex; gap: 8px; margin-top: 8px; }
+.subtask-list { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.subtask-list .st { display: flex; align-items: center; gap: 8px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.subtask-list .st .x { margin-left: auto; color: var(--txt-dim); cursor: pointer; }
+
+/* 列表项 */
+.item { background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.item .top { display: flex; align-items: center; gap: 10px; }
+.item .title { font-weight: 600; }
+.item .meta { font-size: 12px; color: var(--txt-dim); margin-left: auto; }
+.item .body { font-size: 13px; color: var(--txt-dim); margin-top: 6px; white-space: pre-wrap; }
+.item.done { opacity: .55; }
+.item .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.pill.due { background: rgba(255,107,107,.18); color: var(--red); }
+.pill.soon { background: rgba(255,180,84,.18); color: var(--amber); }
+.pill.ok { background: rgba(54,211,153,.18); color: var(--green); }
+.pill.master { background: rgba(124,92,255,.2); color: #b9a6ff; }
+
+.empty { color: var(--txt-dim); font-size: 14px; text-align: center; padding: 24px; }
+
+/* 复习操作 */
+.review-card { border-left: 4px solid var(--accent); }
+.review-card .q { font-weight: 600; white-space: pre-wrap; }
+.reveal { margin-top: 10px; }
+.reveal .ans { background: var(--bg-soft); border: 1px dashed var(--line); border-radius: 10px; padding: 10px; font-size: 14px; white-space: pre-wrap; }
+.flip-btn { margin-top: 8px; }
+
+/* 战报 */
+.report-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.report-grid .stat { text-align: left; }
+.report-grid .stat .v { font-size: 22px; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--card-2); border: 1px solid var(--accent); color: var(--txt); padding: 10px 18px; border-radius: 999px; box-shadow: var(--shadow); opacity: 0; transition: opacity .25s, transform .25s; z-index: 50; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+@media (max-width: 720px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .report-grid { grid-template-columns: 1fr; }
+}

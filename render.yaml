@@ -1,0 +1,13 @@
+# Render 免费部署配置（Render 也能自动识别 Node 项目，此文件可选）
+services:
+  - type: web
+    name: k12-study-hub
+    runtime: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    # 如需持久化数据：在 Render 控制台给本服务挂一个 Disk，
+    # 挂载路径设为 /var/data，并添加环境变量 DATA_DIR=/var/data
+    envVars:
+      - key: NODE_ENV
+        value: production
