@@ -392,7 +392,7 @@ function renderHomeworkList(selector, subject, options = {}) {
     const deleteButton = showDelete ? `<button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}" ${deleteDisabled ? 'disabled title="逾期未处理作业不可删除"' : ''}>${deleteDisabled ? '逾期不可删' : '删除'}</button>` : '';
     const lastAudit = (h.auditLog || []).slice(-1)[0];
     const auditLine = lastAudit ? `<div class="body">最近特殊管理：${esc(lastAudit.action)} · ${esc(lastAudit.reason)} · ${esc(fmtTime(lastAudit.at))}</div>` : '';
-    const overridePanel = options.adminManage && overdue ? renderOverridePanel(h) : '';
+    const overridePanel = options.adminManage ? renderOverridePanel(h) : '';
     return `<div class="item ${status !== 'pending' ? 'done' : ''}">
       <div class="top"><span class="title">${esc(h.title)}</span>
         <span class="meta">${esc(h.subject || '')}</span> ${dueTag}</div>
@@ -408,17 +408,18 @@ function renderHomeworkList(selector, subject, options = {}) {
   }).join('');
 }
 function renderOverridePanel(h) {
-  if (!canOverrideHomework()) return '<div class="override-box"><div class="body">逾期作业已锁定，仅空间创建者可特殊管理。</div></div>';
+  const status = homeworkStatus(h);
+  if (!canOverrideHomework()) return '<div class="override-box"><div class="body">作业管理已锁定，仅空间创建者可修改状态、截止日期或强制删除。</div></div>';
   return `<div class="override-box">
-    <div class="override-title">特殊管理</div>
+    <div class="override-title">管理操作</div>
     <div class="form-row">
       <div style="flex:1;min-width:180px"><label>原因</label><input data-override-reason="${h.id}" placeholder="如：老师延期 / 误登记 / 请假补录" /></div>
       <div style="min-width:150px"><label>新截止日期</label><input data-override-due="${h.id}" type="date" value="${esc(h.due || today())}" /></div>
       <div style="min-width:140px"><label>状态</label>
         <select data-override-status="${h.id}">
-          <option value="pending">待处理</option>
-          <option value="completed">完成</option>
-          <option value="missed">未完成</option>
+          <option value="pending" ${status === 'pending' ? 'selected' : ''}>待处理</option>
+          <option value="completed" ${status === 'completed' ? 'selected' : ''}>完成</option>
+          <option value="missed" ${status === 'missed' ? 'selected' : ''}>未完成</option>
         </select>
       </div>
     </div>
@@ -697,7 +698,8 @@ function addReviewItem(arr, item, label) {
   state.user[arr].push(item);
   award(2, 'add', label);
 }
-function settleHomework(h, nextStatus) {
+function settleHomework(h, nextStatus, options = {}) {
+  const addXp = options.addXp !== false;
   const prevAmount = Number(h.moneyApplied || 0);
   let nextAmount = 0;
   const cfg = subjectConfig(h.subject);
@@ -712,11 +714,11 @@ function settleHomework(h, nextStatus) {
   h.completedAt = nextStatus === 'completed' ? new Date().toISOString() : null;
   h.updatedAt = new Date().toISOString();
 
-  if (nextStatus === 'completed') {
+  if (nextStatus === 'completed' && addXp) {
     award(15, 'hw', `${h.subject}：${h.title} 完成 ${moneyText(nextAmount)}`);
-  } else if (nextStatus === 'missed') {
+  } else if (nextStatus === 'missed' && addXp) {
     award(0, 'hw_miss', `${h.subject}：${h.title} 未完成 ${moneyText(nextAmount)}`);
-  } else {
+  } else if (nextStatus === 'pending') {
     state.user.log = state.user.log || [];
     state.user.log.push({ date: today(), type: 'hw_pending', detail: `${h.subject}：${h.title} 恢复待处理`, xp: 0 });
   }
@@ -974,7 +976,8 @@ document.addEventListener('click', e => {
     const nextStatus = statusEl && statusEl.value;
     if (!['pending', 'completed', 'missed'].includes(nextStatus)) return;
     const oldStatus = homeworkStatus(h);
-    settleHomework(h, nextStatus);
+    if (oldStatus === nextStatus) { toast('状态没有变化'); return; }
+    settleHomework(h, nextStatus, { addXp: false });
     auditHomework(h, '修改状态', reason, { from: oldStatus, to: nextStatus });
     sync().then(() => { renderAll(); toast('状态已特殊调整'); });
   } else if (a === 'hw-override-delete') {
