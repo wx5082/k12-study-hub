@@ -296,6 +296,14 @@ function homeworkStats(subject, options = {}) {
   const items = (state.user.homework || [])
     .filter(h => !subject || h.subject === subject)
     .filter(h => !options.dueDate || h.due === options.dueDate)
+    .filter(h => !options.futureDue || (h.due && h.due > today()))
+    .filter(h => {
+      if (!options.dueStart && !options.dueEnd) return true;
+      const d = h.due || '';
+      if (options.dueStart && d < options.dueStart) return false;
+      if (options.dueEnd && d > options.dueEnd) return false;
+      return true;
+    })
     .filter(h => {
       if (!options.start && !options.end) return true;
       const d = homeworkAssignedDate(h);
@@ -330,6 +338,14 @@ function renderHomeworkList(selector, subject, options = {}) {
   const items = (state.user.homework || [])
     .filter(h => !subject || h.subject === subject)
     .filter(h => !options.dueDate || h.due === options.dueDate)
+    .filter(h => !options.futureDue || (h.due && h.due > today()))
+    .filter(h => {
+      if (!options.dueStart && !options.dueEnd) return true;
+      const d = h.due || '';
+      if (options.dueStart && d < options.dueStart) return false;
+      if (options.dueEnd && d > options.dueEnd) return false;
+      return true;
+    })
     .filter(h => !options.assignedDate || homeworkAssignedDate(h) === options.assignedDate)
     .slice()
     .sort((a, b) => {
@@ -420,6 +436,26 @@ function renderRewardPayout() {
     <div class="stat"><div class="v">¥${paid.toFixed(2).replace(/\.00$/, '')}</div><div class="l">已发放</div></div>
     <div class="stat"><div class="v">${moneyText(pending)}</div><div class="l">待发放</div></div>`;
 }
+function renderSubjectHomework(subject) {
+  const key = SUBJECT_KEYS[subject];
+  renderStatsBox(`#hw-stats-${key}`, subject, { dueDate: today() });
+  renderHomeworkList(`#hw-upcoming-${key}`, subject, {
+    futureDue: true,
+    emptyText: `暂无未到截止日期的${subject}作业。`,
+  });
+  const start = $(`#hw-range-start-${key}`) && $(`#hw-range-start-${key}`).value;
+  const end = $(`#hw-range-end-${key}`) && $(`#hw-range-end-${key}`).value;
+  if (!start && !end) {
+    const list = $(`#hw-list-${key}`);
+    if (list) list.innerHTML = '<div class="empty">选择开始或结束日期后展示对应时间段的作业。</div>';
+    return;
+  }
+  renderHomeworkList(`#hw-list-${key}`, subject, {
+    dueStart: start,
+    dueEnd: end,
+    emptyText: '这个时间段没有对应作业。',
+  });
+}
 function renderRewardCenter() {
   const stats = $('#points-stats');
   const guide = $('#reward-guide');
@@ -509,15 +545,12 @@ function renderHomework() {
   renderRewardSettings();
   renderRewardPayout();
   renderStatsBox('#hw-stats', null, { dueDate: today() });
-  renderStatsBox('#hw-stats-chinese', '语文');
-  renderStatsBox('#hw-stats-math', '数学');
-  renderStatsBox('#hw-stats-english', '英语');
+  renderSubjectHomework('语文');
+  renderSubjectHomework('数学');
+  renderSubjectHomework('英语');
   renderStatsBox('#hw-stats-manage', null);
   renderHomeworkList('#hw-today-list', null, { dueDate: today(), emptyText: '今天没有截止作业。' });
   renderHomeworkList('#hw-date-list', null, { assignedDate: ($('#hw-date-filter') && $('#hw-date-filter').value) || today(), emptyText: '这一天没有登记作业。' });
-  renderHomeworkList('#hw-list-chinese', '语文');
-  renderHomeworkList('#hw-list-math', '数学');
-  renderHomeworkList('#hw-list-english', '英语');
   renderHomeworkList('#hw-list-manage', null, { showActions: false, showDelete: true, adminManage: true });
 }
 
@@ -807,6 +840,7 @@ $('#reward-item-add').addEventListener('click', () => {
 });
 
 $('#hw-date-filter').addEventListener('change', () => renderHomework());
+$$('[id^="hw-range-start-"], [id^="hw-range-end-"]').forEach(input => input.addEventListener('change', () => renderHomework()));
 $('#rp-start').addEventListener('change', () => renderReport());
 $('#rp-end').addEventListener('change', () => renderReport());
 

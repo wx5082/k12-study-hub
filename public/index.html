@@ -150,28 +150,67 @@
     <section class="section" data-section="homework-chinese">
       <div class="card">
         <h2>语文作业</h2>
-        <div class="hint">只显示语文科目的作业和统计。</div>
+        <div class="hint">默认聚焦今日和未到截止日期的语文作业，其他日期通过时间段查询。</div>
         <div class="report-grid" id="hw-stats-chinese"></div>
       </div>
-      <div id="hw-list-chinese"></div>
+      <div class="card">
+        <h2>未到截止日期</h2>
+        <div class="hint">还没到截止日期的语文作业会直接显示在这里。</div>
+        <div id="hw-upcoming-chinese"></div>
+      </div>
+      <div class="card">
+        <h2>按截止日期查询</h2>
+        <div class="hint">选择开始和结束日期后，才展示这个时间段内的语文作业。</div>
+        <div class="form-row">
+          <div style="min-width:150px"><label>开始日期</label><input id="hw-range-start-chinese" type="date" /></div>
+          <div style="min-width:150px"><label>结束日期</label><input id="hw-range-end-chinese" type="date" /></div>
+        </div>
+        <div id="hw-list-chinese" style="margin-top:12px"></div>
+      </div>
     </section>
 
     <section class="section" data-section="homework-math">
       <div class="card">
         <h2>数学作业</h2>
-        <div class="hint">只显示数学科目的作业和统计。</div>
+        <div class="hint">默认聚焦今日和未到截止日期的数学作业，其他日期通过时间段查询。</div>
         <div class="report-grid" id="hw-stats-math"></div>
       </div>
-      <div id="hw-list-math"></div>
+      <div class="card">
+        <h2>未到截止日期</h2>
+        <div class="hint">还没到截止日期的数学作业会直接显示在这里。</div>
+        <div id="hw-upcoming-math"></div>
+      </div>
+      <div class="card">
+        <h2>按截止日期查询</h2>
+        <div class="hint">选择开始和结束日期后，才展示这个时间段内的数学作业。</div>
+        <div class="form-row">
+          <div style="min-width:150px"><label>开始日期</label><input id="hw-range-start-math" type="date" /></div>
+          <div style="min-width:150px"><label>结束日期</label><input id="hw-range-end-math" type="date" /></div>
+        </div>
+        <div id="hw-list-math" style="margin-top:12px"></div>
+      </div>
     </section>
 
     <section class="section" data-section="homework-english">
       <div class="card">
         <h2>英语作业</h2>
-        <div class="hint">只显示英语科目的作业和统计。</div>
+        <div class="hint">默认聚焦今日和未到截止日期的英语作业，其他日期通过时间段查询。</div>
         <div class="report-grid" id="hw-stats-english"></div>
       </div>
-      <div id="hw-list-english"></div>
+      <div class="card">
+        <h2>未到截止日期</h2>
+        <div class="hint">还没到截止日期的英语作业会直接显示在这里。</div>
+        <div id="hw-upcoming-english"></div>
+      </div>
+      <div class="card">
+        <h2>按截止日期查询</h2>
+        <div class="hint">选择开始和结束日期后，才展示这个时间段内的英语作业。</div>
+        <div class="form-row">
+          <div style="min-width:150px"><label>开始日期</label><input id="hw-range-start-english" type="date" /></div>
+          <div style="min-width:150px"><label>结束日期</label><input id="hw-range-end-english" type="date" /></div>
+        </div>
+        <div id="hw-list-english" style="margin-top:12px"></div>
+      </div>
     </section>
 
     <section class="section" data-section="homework-manage">
@@ -245,6 +284,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260804111331"></script>
+  <script src="app.js?v=20260804112742"></script>
 </body>
 </html>
