@@ -268,6 +268,19 @@ function renderOverview() {
         <span class="meta">${esc(h.subject || '作业')} · ${h.due || '未设日期'}</span></div></div>`;
     }).join('');
   }
+
+  const upcomingPending = (u.homework || []).filter(h => homeworkStatus(h) === 'pending' && h.due && h.due > today());
+  const upcomingBox = $('#ov-upcoming-list');
+  if (upcomingBox) {
+    if (!upcomingPending.length) { upcomingBox.innerHTML = '<div class="empty">暂无未来待完成作业。</div>'; }
+    else {
+      upcomingBox.innerHTML = upcomingPending.slice(0, 8).map(h => {
+        return `<div class="item"><div class="top"><span class="title">${esc(h.title)}</span>
+          <span class="meta">${esc(h.subject || '作业')} · 截止 ${esc(h.due)}</span></div>
+          <div class="body">布置日期：${esc(homeworkAssignedDate(h))}</div></div>`;
+      }).join('');
+    }
+  }
 }
 
 function homeworkStatus(h) {
@@ -296,7 +309,8 @@ function homeworkStats(subject, options = {}) {
   const items = (state.user.homework || [])
     .filter(h => !subject || h.subject === subject)
     .filter(h => !options.dueDate || h.due === options.dueDate)
-    .filter(h => !options.futureDue || (h.due && h.due > today()))
+    .filter(h => !options.upcomingDue || (homeworkStatus(h) === 'pending' && h.due && h.due >= today()))
+    .filter(h => !options.futureDue || (homeworkStatus(h) === 'pending' && h.due && h.due > today()))
     .filter(h => {
       if (!options.dueStart && !options.dueEnd) return true;
       const d = h.due || '';
@@ -338,7 +352,8 @@ function renderHomeworkList(selector, subject, options = {}) {
   const items = (state.user.homework || [])
     .filter(h => !subject || h.subject === subject)
     .filter(h => !options.dueDate || h.due === options.dueDate)
-    .filter(h => !options.futureDue || (h.due && h.due > today()))
+    .filter(h => !options.upcomingDue || (homeworkStatus(h) === 'pending' && h.due && h.due >= today()))
+    .filter(h => !options.futureDue || (homeworkStatus(h) === 'pending' && h.due && h.due > today()))
     .filter(h => {
       if (!options.dueStart && !options.dueEnd) return true;
       const d = h.due || '';
@@ -440,7 +455,7 @@ function renderSubjectHomework(subject) {
   const key = SUBJECT_KEYS[subject];
   renderStatsBox(`#hw-stats-${key}`, subject, { dueDate: today() });
   renderHomeworkList(`#hw-upcoming-${key}`, subject, {
-    futureDue: true,
+    upcomingDue: true,
     emptyText: `暂无未到截止日期的${subject}作业。`,
   });
   const start = $(`#hw-range-start-${key}`) && $(`#hw-range-start-${key}`).value;

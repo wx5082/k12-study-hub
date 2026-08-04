@@ -83,23 +83,14 @@
       </div>
 
       <div class="card">
-        <h2>共享学习空间</h2>
-        <div class="hint" id="sp-status">当前为个人数据。创建共享空间后，多个账号可用同一个共享码共同更新这份学习数据。</div>
-        <div class="form-row">
-          <div style="flex:1;min-width:180px"><label>空间名称</label><input id="sp-name" placeholder="如：小明的学习空间" /></div>
-          <div style="flex:1;min-width:160px"><label>共享码</label><input id="sp-code" placeholder="输入 6 位共享码" maxlength="6" /></div>
-        </div>
-        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn sm" id="sp-create">创建共享空间</button>
-          <button class="btn ghost sm" id="sp-join">加入共享空间</button>
-          <span class="tag hidden" id="sp-current"></span>
-        </div>
-      </div>
-
-      <div class="card">
         <h2>今日作业队列</h2>
         <div class="hint">今天截止且还没处理的作业会出现在这里，完成给奖励，标记未完成会扣钱。</div>
         <div id="ov-due-list"></div>
+      </div>
+      <div class="card">
+        <h2>未来待完成</h2>
+        <div class="hint">还没到截止日期、且不是今天截止的未完成作业会显示在这里。</div>
+        <div id="ov-upcoming-list"></div>
       </div>
     </section>
 
@@ -215,6 +206,19 @@
 
     <section class="section" data-section="homework-manage">
       <div class="card">
+        <h2>共享学习空间</h2>
+        <div class="hint" id="sp-status">当前为个人数据。创建共享空间后，多个账号可用同一个共享码共同更新这份学习数据。</div>
+        <div class="form-row">
+          <div style="flex:1;min-width:180px"><label>空间名称</label><input id="sp-name" placeholder="如：小明的学习空间" /></div>
+          <div style="flex:1;min-width:160px"><label>共享码</label><input id="sp-code" placeholder="输入 6 位共享码" maxlength="6" /></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn sm" id="sp-create">创建共享空间</button>
+          <button class="btn ghost sm" id="sp-join">加入共享空间</button>
+          <span class="tag hidden" id="sp-current"></span>
+        </div>
+      </div>
+      <div class="card">
         <h2>作业管理</h2>
         <div class="hint">集中查看、统计和删除作业，避免在日常处理列表里误删。</div>
         <div class="report-grid" id="hw-stats-manage"></div>
@@ -284,6 +288,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260804112742"></script>
+  <script src="app.js?v=20260804113605"></script>
 </body>
 </html>
