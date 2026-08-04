@@ -321,9 +321,10 @@ function renderHomeworkList(selector, subject, options = {}) {
     const tasks = (h.tasks || []).map(t => `<div class="subtask-list"><div class="st" style="margin:0">
       <input type="checkbox" ${t.done ? 'checked' : ''} data-action="hw-task" data-id="${h.id}" data-tid="${t.id}" />
       <span style="${t.done ? 'text-decoration:line-through;color:var(--txt-dim)' : ''}">${esc(t.text)}</span></div></div>`).join('');
-    const actionButtons = showActions ? `<button class="btn sm ${status === 'completed' ? 'success active-state' : ''}" data-action="hw-complete" data-id="${h.id}" ${status === 'completed' ? 'disabled' : ''}>完成</button>
-        <button class="btn sm danger-fill ${status === 'missed' ? 'active-state' : ''}" data-action="hw-miss" data-id="${h.id}" ${status === 'missed' ? 'disabled' : ''}>未完成</button>
-        <button class="btn ghost sm ${status === 'pending' ? 'active-state' : ''}" data-action="hw-pending" data-id="${h.id}" ${status === 'pending' ? 'disabled' : ''}>待处理</button>` : '';
+    const locked = overdue ? 'disabled title="逾期作业不可再改状态"' : '';
+    const actionButtons = showActions ? `<button class="btn sm ${status === 'completed' ? 'success active-state' : ''}" data-action="hw-complete" data-id="${h.id}" ${status === 'completed' || overdue ? 'disabled' : ''} ${locked}>完成</button>
+        <button class="btn sm danger-fill ${status === 'missed' ? 'active-state' : ''}" data-action="hw-miss" data-id="${h.id}" ${status === 'missed' || overdue ? 'disabled' : ''} ${locked}>未完成</button>
+        <button class="btn ghost sm ${status === 'pending' ? 'active-state' : ''}" data-action="hw-pending" data-id="${h.id}" ${status === 'pending' || overdue ? 'disabled' : ''} ${locked}>${overdue ? '逾期锁定' : '待处理'}</button>` : '';
     const deleteDisabled = showDelete && overdue;
     const deleteButton = showDelete ? `<button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}" ${deleteDisabled ? 'disabled title="逾期未处理作业不可删除"' : ''}>${deleteDisabled ? '逾期不可删' : '删除'}</button>` : '';
     return `<div class="item ${status !== 'pending' ? 'done' : ''}">
@@ -671,16 +672,12 @@ $('#sp-create').addEventListener('click', async () => {
     let code = genSpaceCode();
     let created = null;
     for (let i = 0; i < 5; i++) {
-      const result = await db.from('spaces').insert({ code, name, owner_id: state.authUser.id, data: clientData(state.user) }).select('code').single();
-      if (!result.error) { created = result; break; }
+      const result = await db.rpc('create_space', { space_code: code, space_name: name, seed_data: clientData(state.user) });
+      if (!result.error) { created = result.data || code; break; }
       if (result.error.code !== '23505') throw result.error;
       code = genSpaceCode();
     }
     if (!created) throw new Error('共享码生成失败，请再试一次');
-    const member = await db.from('space_members').insert({ code, user_id: state.authUser.id, role: 'owner' });
-    if (member.error) throw member.error;
-    const profile = await db.from('profiles').update({ active_space: code }).eq('id', state.authUser.id);
-    if (profile.error) throw profile.error;
     await loadCurrentUser();
     renderAll();
     toast('共享空间已创建');
@@ -718,6 +715,7 @@ document.addEventListener('click', e => {
   if (a === 'hw-complete' || a === 'hw-miss' || a === 'hw-pending') {
     const h = state.user.homework.find(x => x.id === id);
     if (!h) return;
+    if (isOverdueHomework(h)) { toast('逾期作业不可再改状态'); return; }
     const nextStatus = a === 'hw-complete' ? 'completed' : a === 'hw-miss' ? 'missed' : 'pending';
     settleHomework(h, nextStatus);
     sync().then(() => { renderAll(); toast(nextStatus === 'completed' ? '已完成，奖励已入账' : nextStatus === 'missed' ? '已标记未完成，扣款已记录' : '已恢复待处理'); });
