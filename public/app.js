@@ -35,17 +35,26 @@ function ensureDb() {
 }
 const SUBJECTS = ['语文', '数学', '英语'];
 const SUBJECT_KEYS = { '语文': 'chinese', '数学': 'math', '英语': 'english' };
-const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'money', 'rewardPaid', 'rewardConfig', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
+const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'points', 'money', 'rewardPaid', 'rewardConfig', 'rewardItems', 'rewardRedemptions', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
 const DEFAULT_DATA = () => ({
-  displayName: '', grade: '', xp: 0, money: 0, rewardPaid: 0,
+  displayName: '', grade: '', xp: 0, points: 0, money: 0, rewardPaid: 0,
   rewardConfig: {
     '语文': { reward: 2, penalty: 1 },
     '数学': { reward: 2, penalty: 1 },
     '英语': { reward: 2, penalty: 1 },
   },
+  rewardItems: DEFAULT_REWARD_ITEMS(),
+  rewardRedemptions: [],
   checkins: [],
   homework: [], poetry: [], words: [], wrong: [], log: [], createdAt: new Date().toISOString(),
 });
+function DEFAULT_REWARD_ITEMS() {
+  return [
+    { id: 'default-screen-20', name: '额外娱乐 20 分钟', cost: 80, active: true },
+    { id: 'default-dinner', name: '选择一次家庭晚餐', cost: 150, active: true },
+    { id: 'default-gift', name: '小文具 / 小礼物一次', cost: 300, active: true },
+  ];
+}
 function clientData(data) {
   const out = {};
   SYNC_FIELDS.forEach(f => out[f] = data && data[f] != null ? data[f] : DEFAULT_DATA()[f]);
@@ -58,9 +67,12 @@ function publicFrom(profile, data, space) {
     displayName: data.displayName || profile.display_name || profile.email,
     grade: data.grade || profile.grade || '',
     xp: data.xp || 0,
+    points: data.points != null ? Number(data.points || 0) : Number(data.xp || 0),
     money: data.money || 0,
     rewardPaid: data.rewardPaid || 0,
     rewardConfig: normalizeRewardConfig(data.rewardConfig),
+    rewardItems: normalizeRewardItems(data.rewardItems),
+    rewardRedemptions: data.rewardRedemptions || [],
     checkins: data.checkins || [],
     homework: data.homework || [],
     poetry: data.poetry || [],
@@ -70,6 +82,15 @@ function publicFrom(profile, data, space) {
     createdAt: data.createdAt || profile.created_at || new Date().toISOString(),
     _space: space || null,
   };
+}
+function normalizeRewardItems(items) {
+  const list = Array.isArray(items) && items.length ? items : DEFAULT_REWARD_ITEMS();
+  return list.map(item => ({
+    id: item.id || uid(),
+    name: item.name || '未命名奖励',
+    cost: Math.max(1, Number(item.cost || 1)),
+    active: item.active !== false,
+  }));
 }
 function normalizeRewardConfig(cfg) {
   const defaults = DEFAULT_DATA().rewardConfig;
@@ -167,6 +188,7 @@ function toast(msg) {
 }
 function award(xp, type, detail) {
   state.user.xp = (state.user.xp || 0) + xp;
+  state.user.points = Number(state.user.points || 0) + xp;
   state.user.log = state.user.log || [];
   state.user.log.push({ date: today(), type, detail, xp });
 }
@@ -391,6 +413,65 @@ function renderRewardPayout() {
     <div class="stat"><div class="v">¥${paid.toFixed(2).replace(/\.00$/, '')}</div><div class="l">已发放</div></div>
     <div class="stat"><div class="v">${moneyText(pending)}</div><div class="l">待发放</div></div>`;
 }
+function renderRewardCenter() {
+  const stats = $('#points-stats');
+  const store = $('#reward-store');
+  const records = $('#reward-redemptions');
+  if (!stats || !store || !records) return;
+  state.user.rewardItems = normalizeRewardItems(state.user.rewardItems);
+  state.user.rewardRedemptions = state.user.rewardRedemptions || [];
+  const lv = levelInfo(state.user.xp);
+  const pending = state.user.rewardRedemptions.filter(x => x.status === 'pending').length;
+  const fulfilled = state.user.rewardRedemptions.filter(x => x.status === 'fulfilled').length;
+  stats.innerHTML = `
+    <div class="stat"><div class="v lvl">Lv.${lv.level}</div><div class="l">当前等级</div></div>
+    <div class="stat"><div class="v">${state.user.xp || 0}</div><div class="l">累计经验</div></div>
+    <div class="stat"><div class="v flame">${state.user.points || 0}</div><div class="l">可用积分</div></div>
+    <div class="stat"><div class="v master">${pending}</div><div class="l">待发放</div></div>
+    <div class="stat"><div class="v">${fulfilled}</div><div class="l">已发放</div></div>`;
+
+  const activeItems = state.user.rewardItems.filter(x => x.active !== false);
+  if (!activeItems.length) {
+    store.innerHTML = '<div class="empty">还没有可兑换奖励。</div>';
+  } else {
+    store.innerHTML = activeItems.map(item => {
+      const enough = Number(state.user.points || 0) >= Number(item.cost || 0);
+      return `<div class="reward-item">
+        <div>
+          <div class="reward-name">${esc(item.name)}</div>
+          <div class="body">${item.cost} 积分 · ${enough ? '可以兑换' : '积分不足'}</div>
+        </div>
+        <div class="actions">
+          <button class="btn sm" data-action="reward-redeem" data-id="${item.id}" ${enough ? '' : 'disabled'}>兑换</button>
+          <button class="btn ghost sm danger" data-action="reward-item-del" data-id="${item.id}" ${canOverrideHomework() ? '' : 'disabled title="仅空间创建者可管理奖励"'}>删除</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const list = state.user.rewardRedemptions.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  if (!list.length) {
+    records.innerHTML = '<div class="empty">还没有兑换记录。</div>';
+  } else {
+    records.innerHTML = list.map(r => {
+      const statusText = r.status === 'fulfilled' ? '已发放' : r.status === 'canceled' ? '已取消' : '待发放';
+      const pillClass = r.status === 'fulfilled' ? 'ok' : r.status === 'canceled' ? 'due' : 'soon';
+      const adminActions = r.status === 'pending' && canOverrideHomework() ? `<button class="btn sm" data-action="reward-fulfill" data-id="${r.id}">标记发放</button>
+        <button class="btn ghost sm danger" data-action="reward-cancel" data-id="${r.id}">取消并返还</button>` : '';
+      return `<div class="item">
+        <div class="top"><span class="title">${esc(r.name)}</span><span class="pill ${pillClass}">${statusText}</span></div>
+        <div class="body">${r.cost} 积分 · 兑换时间：${esc(fmtTime(r.createdAt))}${r.handledAt ? ' · 处理时间：' + esc(fmtTime(r.handledAt)) : ''}</div>
+        <div class="actions">${adminActions || '<span class="tag">记录已归档</span>'}</div>
+      </div>`;
+    }).join('');
+  }
+  const addBtn = $('#reward-item-add');
+  if (addBtn) addBtn.disabled = !canOverrideHomework();
+  const nameInput = $('#reward-item-name');
+  const costInput = $('#reward-item-cost');
+  if (nameInput) nameInput.disabled = !canOverrideHomework();
+  if (costInput) costInput.disabled = !canOverrideHomework();
+}
 function renderHomework() {
   renderRewardSettings();
   renderRewardPayout();
@@ -499,6 +580,7 @@ function renderAll() {
   renderSpace();
   renderOverview();
   renderHomework();
+  renderRewardCenter();
   renderReport();
 }
 
@@ -676,6 +758,21 @@ $('#reward-paid-save').addEventListener('click', () => {
   sync().then(() => { renderAll(); toast('已保存发放金额'); });
 });
 
+$('#reward-item-add').addEventListener('click', () => {
+  if (!canOverrideHomework()) { toast('仅空间创建者可管理奖励'); return; }
+  const name = $('#reward-item-name').value.trim();
+  const cost = Math.round(Number($('#reward-item-cost').value || 0));
+  if (!name) { toast('请填写奖励名称'); return; }
+  if (cost < 1) { toast('积分至少为 1'); return; }
+  state.user.rewardItems = normalizeRewardItems(state.user.rewardItems);
+  state.user.rewardItems.push({ id: uid(), name, cost, active: true });
+  state.user.log = state.user.log || [];
+  state.user.log.push({ date: today(), type: 'reward_item_add', detail: `新增奖励：${name}（${cost} 积分）`, xp: 0 });
+  $('#reward-item-name').value = '';
+  $('#reward-item-cost').value = 100;
+  sync().then(() => { renderAll(); toast('奖励已新增'); });
+});
+
 $('#hw-date-filter').addEventListener('change', () => renderHomework());
 $('#rp-start').addEventListener('change', () => renderReport());
 $('#rp-end').addEventListener('change', () => renderReport());
@@ -803,6 +900,45 @@ document.addEventListener('click', e => {
     if (!h || !canOverrideHomework()) return;
     const reason = overrideReason(id); if (!reason) return;
     if (forceDeleteHomework(id, reason)) sync().then(() => { renderAll(); toast('作业已强制删除'); });
+  } else if (a === 'reward-redeem') {
+    state.user.rewardItems = normalizeRewardItems(state.user.rewardItems);
+    const item = state.user.rewardItems.find(x => x.id === id && x.active !== false);
+    if (!item) return;
+    if (Number(state.user.points || 0) < Number(item.cost || 0)) { toast('可用积分不足'); return; }
+    state.user.points = Number(state.user.points || 0) - Number(item.cost || 0);
+    state.user.rewardRedemptions = state.user.rewardRedemptions || [];
+    state.user.rewardRedemptions.push({ id: uid(), rewardId: item.id, name: item.name, cost: Number(item.cost || 0), status: 'pending', createdAt: new Date().toISOString() });
+    state.user.log = state.user.log || [];
+    state.user.log.push({ date: today(), type: 'reward_redeem', detail: `兑换奖励：${item.name}（-${item.cost} 积分）`, xp: 0 });
+    sync().then(() => { renderAll(); toast('兑换成功，等待发放'); });
+  } else if (a === 'reward-fulfill') {
+    if (!canOverrideHomework()) { toast('仅空间创建者可确认发放'); return; }
+    const r = (state.user.rewardRedemptions || []).find(x => x.id === id);
+    if (!r || r.status !== 'pending') return;
+    r.status = 'fulfilled';
+    r.handledAt = new Date().toISOString();
+    state.user.log = state.user.log || [];
+    state.user.log.push({ date: today(), type: 'reward_fulfill', detail: `已发放兑换奖励：${r.name}`, xp: 0 });
+    sync().then(() => { renderAll(); toast('已标记发放'); });
+  } else if (a === 'reward-cancel') {
+    if (!canOverrideHomework()) { toast('仅空间创建者可取消兑换'); return; }
+    const r = (state.user.rewardRedemptions || []).find(x => x.id === id);
+    if (!r || r.status !== 'pending') return;
+    r.status = 'canceled';
+    r.handledAt = new Date().toISOString();
+    state.user.points = Number(state.user.points || 0) + Number(r.cost || 0);
+    state.user.log = state.user.log || [];
+    state.user.log.push({ date: today(), type: 'reward_cancel', detail: `取消兑换并返还：${r.name}（+${r.cost} 积分）`, xp: 0 });
+    sync().then(() => { renderAll(); toast('已取消并返还积分'); });
+  } else if (a === 'reward-item-del') {
+    if (!canOverrideHomework()) { toast('仅空间创建者可管理奖励'); return; }
+    state.user.rewardItems = normalizeRewardItems(state.user.rewardItems);
+    const item = state.user.rewardItems.find(x => x.id === id);
+    if (!item) return;
+    item.active = false;
+    state.user.log = state.user.log || [];
+    state.user.log.push({ date: today(), type: 'reward_item_del', detail: `下架奖励：${item.name}`, xp: 0 });
+    sync().then(() => { renderAll(); toast('奖励已下架'); });
   } else if (a === 'po-del') {
     state.user.poetry = state.user.poetry.filter(x => x.id !== id); sync().then(renderAll);
   } else if (a === 'wd-del') {

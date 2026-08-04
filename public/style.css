@@ -169,6 +169,21 @@ textarea { resize: vertical; min-height: 60px; }
 .mini-grid em { display: block; margin-top: 3px; color: var(--txt-dim); font-size: 11px; font-style: normal; }
 .compact-log { display: grid; gap: 8px; }
 
+/* 奖励中心 */
+.store-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.reward-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+.reward-name { font-weight: 800; color: var(--txt); }
+.reward-item .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--card-2); border: 1px solid var(--accent); color: var(--txt); padding: 10px 18px; border-radius: 999px; box-shadow: var(--shadow); opacity: 0; transition: opacity .25s, transform .25s; z-index: 50; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
 
@@ -178,4 +193,6 @@ textarea { resize: vertical; min-height: 60px; }
   .report-grid .stat { padding: 9px 10px; }
   .report-grid .stat .v { font-size: 17px; overflow-wrap: anywhere; }
   .split-grid { grid-template-columns: 1fr; gap: 0; }
+  .reward-item { flex-direction: column; }
+  .reward-item .actions { justify-content: flex-start; }
 }

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>学习台 StudyDeck · 多人在线版</title>
-  <link rel="stylesheet" href="style.css?v=20260804102359" />
+  <link rel="stylesheet" href="style.css?v=20260804103946" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=20260803175800"></script>
 </head>
@@ -56,6 +56,7 @@
       <button data-tab="homework-math">数学</button>
       <button data-tab="homework-english">英语</button>
       <button data-tab="homework-manage">管理</button>
+      <button data-tab="rewards">奖励中心</button>
       <button data-tab="report">本周简报</button>
     </div>
 
@@ -197,6 +198,33 @@
       <div id="hw-list-manage"></div>
     </section>
 
+    <section class="section" data-section="rewards">
+      <div class="card">
+        <h2>奖励中心</h2>
+        <div class="hint">累计经验用于等级成长，可用积分用于兑换权益，兑换不会影响等级。</div>
+        <div class="stat-grid" id="points-stats"></div>
+      </div>
+      <div class="card">
+        <h2>积分商店</h2>
+        <div class="hint">用可用积分兑换家庭权益，兑换后进入待发放记录。</div>
+        <div id="reward-store" class="store-grid"></div>
+      </div>
+      <div class="card">
+        <h2>奖励管理</h2>
+        <div class="hint">家长可维护可兑换项目。共享空间内仅创建者建议管理这些项目。</div>
+        <div class="form-row">
+          <div style="flex:1;min-width:180px"><label>奖励名称</label><input id="reward-item-name" placeholder="如：周末多玩 20 分钟" /></div>
+          <div style="min-width:140px"><label>所需积分</label><input id="reward-item-cost" type="number" min="1" step="1" value="100" /></div>
+        </div>
+        <div style="margin-top:12px"><button class="btn sm" id="reward-item-add">新增奖励</button></div>
+      </div>
+      <div class="card">
+        <h2>兑换记录</h2>
+        <div class="hint">待发放表示孩子已兑换、家长还未兑现；已发放后不再返还积分。</div>
+        <div id="reward-redemptions"></div>
+      </div>
+    </section>
+
     <!-- 战报 -->
     <section class="section" data-section="report">
       <div class="card">
@@ -212,6 +240,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260804102359"></script>
+  <script src="app.js?v=20260804103946"></script>
 </body>
 </html>
