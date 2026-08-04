@@ -43,6 +43,11 @@ textarea { resize: vertical; min-height: 60px; }
 .btn.ghost:hover { color: var(--txt); border-color: var(--accent); }
 .btn.sm { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
 .btn.danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+.btn.success { background: #16a34a; color: #fff; }
+.btn.danger-fill { background: #dc2626; color: #fff; }
+.btn.active-state:disabled { opacity: 1; box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
+.btn.success.active-state:disabled { box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
+.btn.danger-fill.active-state:disabled { box-shadow: 0 0 0 3px rgba(220,38,38,.18); }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--card-2); color: var(--txt-dim); }
 .hidden { display: none !important; }
 

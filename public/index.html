@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>学习台 StudyDeck · 多人在线版</title>
-  <link rel="stylesheet" href="style.css?v=20260803180604" />
+  <link rel="stylesheet" href="style.css?v=20260804090303" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=20260803175800"></script>
 </head>
@@ -55,6 +55,7 @@
       <button data-tab="homework-chinese">语文</button>
       <button data-tab="homework-math">数学</button>
       <button data-tab="homework-english">英语</button>
+      <button data-tab="homework-manage">管理</button>
       <button data-tab="report">本周简报</button>
     </div>
 
@@ -131,8 +132,25 @@
         <div style="margin-top:12px"><button class="btn sm" id="reward-save">保存奖励设置</button></div>
       </div>
       <div class="card">
+        <h2>今日作业</h2>
+        <div class="hint">只显示今天截止的作业，方便当天集中处理。</div>
+        <div id="hw-today-list"></div>
+      </div>
+      <div class="card">
+        <h2>按布置日期查看</h2>
+        <div class="hint">选择日期，查看那一天登记/布置的作业。</div>
+        <div class="form-row">
+          <div style="min-width:180px"><label>布置日期</label><input id="hw-date-filter" type="date" /></div>
+        </div>
+        <div id="hw-date-list" style="margin-top:12px"></div>
+      </div>
+      <div class="card">
         <h2>作业统计</h2>
         <div class="report-grid" id="hw-stats"></div>
+      </div>
+      <div class="card">
+        <h2>全部作业</h2>
+        <div class="hint">这里可以处理完成状态；删除请到“管理”页。</div>
       </div>
       <div id="hw-list"></div>
     </section>
@@ -164,6 +182,15 @@
       <div id="hw-list-english"></div>
     </section>
 
+    <section class="section" data-section="homework-manage">
+      <div class="card">
+        <h2>作业管理</h2>
+        <div class="hint">集中查看和删除作业，避免在日常处理列表里误删。</div>
+        <div class="report-grid" id="hw-stats-manage"></div>
+      </div>
+      <div id="hw-list-manage"></div>
+    </section>
+
     <!-- 战报 -->
     <section class="section" data-section="report">
       <div class="card">
@@ -179,6 +206,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260803175800"></script>
+  <script src="app.js?v=20260804090303"></script>
 </body>
 </html>

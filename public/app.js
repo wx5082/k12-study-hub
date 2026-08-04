@@ -251,6 +251,11 @@ function moneyText(n) {
   const v = Number(n || 0);
   return (v >= 0 ? '+¥' : '-¥') + Math.abs(v).toFixed(2).replace(/\.00$/, '');
 }
+function homeworkAssignedDate(h) {
+  if (h.assignedDate) return h.assignedDate;
+  if (h.createdAt) return fmt(new Date(h.createdAt));
+  return h.due || today();
+}
 function homeworkStats(subject) {
   const items = (state.user.homework || []).filter(h => !subject || h.subject === subject);
   const completed = items.filter(h => homeworkStatus(h) === 'completed').length;
@@ -272,17 +277,21 @@ function renderStatsBox(selector, subject) {
 }
 
 /* ---------------- 渲染：作业 ---------------- */
-function renderHomeworkList(selector, subject) {
+function renderHomeworkList(selector, subject, options = {}) {
   const list = $(selector);
   if (!list) return;
+  const showActions = options.showActions !== false;
+  const showDelete = options.showDelete === true;
   const items = (state.user.homework || [])
     .filter(h => !subject || h.subject === subject)
+    .filter(h => !options.dueDate || h.due === options.dueDate)
+    .filter(h => !options.assignedDate || homeworkAssignedDate(h) === options.assignedDate)
     .slice()
     .sort((a, b) => {
       const sa = homeworkStatus(a), sb = homeworkStatus(b);
       return sa === sb ? (a.due || '').localeCompare(b.due || '') : sa === 'pending' ? -1 : sb === 'pending' ? 1 : 0;
     });
-  if (!items.length) { list.innerHTML = '<div class="empty">还没有登记作业。</div>'; return; }
+  if (!items.length) { list.innerHTML = `<div class="empty">${options.emptyText || '还没有登记作业。'}</div>`; return; }
   list.innerHTML = items.map(h => {
     const status = homeworkStatus(h);
     const overdue = status === 'pending' && h.due && h.due < today();
@@ -295,19 +304,23 @@ function renderHomeworkList(selector, subject) {
     else if (dueToday) dueTag = '<span class="pill soon">今天截止</span>';
     else if (h.due) dueTag = '<span class="pill ok">截止 ' + h.due + '</span>';
     const doneTime = status === 'completed' && h.completedAt ? `<div class="body">完成时间：${esc(fmtTime(h.completedAt))}</div>` : '';
+    const assignedLine = `<div class="body">布置日期：${esc(homeworkAssignedDate(h))}${h.due ? ' · 截止日期：' + esc(h.due) : ''}</div>`;
     const tasks = (h.tasks || []).map(t => `<div class="subtask-list"><div class="st" style="margin:0">
       <input type="checkbox" ${t.done ? 'checked' : ''} data-action="hw-task" data-id="${h.id}" data-tid="${t.id}" />
       <span style="${t.done ? 'text-decoration:line-through;color:var(--txt-dim)' : ''}">${esc(t.text)}</span></div></div>`).join('');
+    const actionButtons = showActions ? `<button class="btn sm ${status === 'completed' ? 'success active-state' : ''}" data-action="hw-complete" data-id="${h.id}" ${status === 'completed' ? 'disabled' : ''}>完成</button>
+        <button class="btn sm danger-fill ${status === 'missed' ? 'active-state' : ''}" data-action="hw-miss" data-id="${h.id}" ${status === 'missed' ? 'disabled' : ''}>未完成</button>
+        <button class="btn ghost sm ${status === 'pending' ? 'active-state' : ''}" data-action="hw-pending" data-id="${h.id}" ${status === 'pending' ? 'disabled' : ''}>待处理</button>` : '';
+    const deleteButton = showDelete ? `<button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}">删除</button>` : '';
     return `<div class="item ${status !== 'pending' ? 'done' : ''}">
       <div class="top"><span class="title">${esc(h.title)}</span>
         <span class="meta">${esc(h.subject || '')}</span> ${dueTag}</div>
+      ${assignedLine}
       ${doneTime}
       ${tasks}
       <div class="actions">
-        <button class="btn sm" data-action="hw-complete" data-id="${h.id}" ${status === 'completed' ? 'disabled' : ''}>完成</button>
-        <button class="btn ghost sm danger" data-action="hw-miss" data-id="${h.id}" ${status === 'missed' ? 'disabled' : ''}>未完成</button>
-        <button class="btn ghost sm" data-action="hw-pending" data-id="${h.id}" ${status === 'pending' ? 'disabled' : ''}>恢复待处理</button>
-        <button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}">删除</button>
+        ${actionButtons}
+        ${deleteButton}
       </div></div>`;
   }).join('');
 }
@@ -326,10 +339,14 @@ function renderHomework() {
   renderStatsBox('#hw-stats-chinese', '语文');
   renderStatsBox('#hw-stats-math', '数学');
   renderStatsBox('#hw-stats-english', '英语');
+  renderStatsBox('#hw-stats-manage', null);
+  renderHomeworkList('#hw-today-list', null, { dueDate: today(), emptyText: '今天没有截止作业。' });
+  renderHomeworkList('#hw-date-list', null, { assignedDate: ($('#hw-date-filter') && $('#hw-date-filter').value) || today(), emptyText: '这一天没有登记作业。' });
   renderHomeworkList('#hw-list', null);
   renderHomeworkList('#hw-list-chinese', '语文');
   renderHomeworkList('#hw-list-math', '数学');
   renderHomeworkList('#hw-list-english', '英语');
+  renderHomeworkList('#hw-list-manage', null, { showActions: false, showDelete: true });
 }
 
 /* ---------------- 渲染：古诗文 / 单词 / 错题 ---------------- */
@@ -420,7 +437,7 @@ function renderReport() {
   const recent = (u.log || []).slice(-6).reverse();
   $('#rp-log').className = 'compact-log';
   $('#rp-log').innerHTML = recent.length ? recent.map(l => {
-    const name = { hw: '完成作业', hw_miss: '未完成作业', hw_pending: '恢复待处理', review: '复习', master: '掌握一项', checkin: '打卡', add: '新增' }[l.type] || l.type;
+    const name = { hw: '完成作业', hw_miss: '未完成作业', hw_pending: '恢复待处理', hw_delete: '删除作业', review: '复习', master: '掌握一项', checkin: '打卡', add: '新增' }[l.type] || l.type;
     return `<div class="item" style="margin-bottom:8px"><div class="top"><span class="title">${esc(name)}</span>
       <span class="meta">${l.date} · +${l.xp || 0} XP</span></div>
       ${l.detail ? `<div class="body">${esc(l.detail)}</div>` : ''}</div>`;
@@ -458,6 +475,8 @@ function renderSpace() {
 function ensureHomeworkDefaults() {
   const due = $('#hw-due');
   if (due && !due.value) due.value = today();
+  const filter = $('#hw-date-filter');
+  if (filter && !filter.value) filter.value = today();
 }
 
 /* ---------------- 增删改操作 ---------------- */
@@ -489,6 +508,16 @@ function settleHomework(h, nextStatus) {
     state.user.log = state.user.log || [];
     state.user.log.push({ date: today(), type: 'hw_pending', detail: `${h.subject}：${h.title} 恢复待处理`, xp: 0 });
   }
+}
+function deleteHomework(id) {
+  const h = state.user.homework.find(x => x.id === id);
+  if (!h) return false;
+  const amount = Number(h.moneyApplied || 0);
+  if (amount) state.user.money = Number(state.user.money || 0) - amount;
+  state.user.homework = state.user.homework.filter(x => x.id !== id);
+  state.user.log = state.user.log || [];
+  state.user.log.push({ date: today(), type: 'hw_delete', detail: `${h.subject || '作业'}：${h.title} 已删除`, xp: 0 });
+  return true;
 }
 function doReview(kind, id, remembered) {
   const map = { poetry: 'poetry', words: 'words', wrong: 'wrong' };
@@ -545,7 +574,7 @@ $('#hw-save').addEventListener('click', () => {
   const due = $('#hw-due').value || today();
   if (!title) { toast('请填写作业内容'); return; }
   state.user.homework = state.user.homework || [];
-  state.user.homework.push({ id: uid(), subject, title, due, status: 'pending', done: false, moneyApplied: 0, tasks: pendingSubtasks.slice(), createdAt: new Date().toISOString() });
+  state.user.homework.push({ id: uid(), subject, title, due, assignedDate: today(), status: 'pending', done: false, moneyApplied: 0, tasks: pendingSubtasks.slice(), createdAt: new Date().toISOString() });
   award(2, 'add', title);
   pendingSubtasks = [];
   $('#hw-subject').value = '语文'; $('#hw-title').value = ''; $('#hw-due').value = today();
@@ -563,6 +592,8 @@ $('#reward-save').addEventListener('click', () => {
   state.user.rewardConfig = cfg;
   sync().then(() => { renderAll(); toast('奖励设置已保存'); });
 });
+
+$('#hw-date-filter').addEventListener('change', () => renderHomework());
 
 // 旧复习模块入口保留兼容，不在当前界面显示
 if ($('#po-save')) $('#po-save').addEventListener('click', () => {
@@ -661,8 +692,7 @@ document.addEventListener('click', e => {
   } else if (a === 'hw-task') {
     // checkbox 变化在 change 事件处理更稳，这里仅兜底
   } else if (a === 'hw-del') {
-    state.user.homework = state.user.homework.filter(x => x.id !== id);
-    sync().then(renderAll);
+    if (deleteHomework(id)) sync().then(() => { renderAll(); toast('作业已删除'); });
   } else if (a === 'po-del') {
     state.user.poetry = state.user.poetry.filter(x => x.id !== id); sync().then(renderAll);
   } else if (a === 'wd-del') {
