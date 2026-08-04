@@ -256,18 +256,27 @@ function homeworkAssignedDate(h) {
   if (h.createdAt) return fmt(new Date(h.createdAt));
   return h.due || today();
 }
-function homeworkStats(subject) {
-  const items = (state.user.homework || []).filter(h => !subject || h.subject === subject);
+function homeworkStats(subject, options = {}) {
+  const items = (state.user.homework || [])
+    .filter(h => !subject || h.subject === subject)
+    .filter(h => !options.dueDate || h.due === options.dueDate)
+    .filter(h => {
+      if (!options.start && !options.end) return true;
+      const d = homeworkAssignedDate(h);
+      if (options.start && d < options.start) return false;
+      if (options.end && d > options.end) return false;
+      return true;
+    });
   const completed = items.filter(h => homeworkStatus(h) === 'completed').length;
   const missed = items.filter(h => homeworkStatus(h) === 'missed').length;
   const pending = items.filter(h => homeworkStatus(h) === 'pending').length;
   const money = items.reduce((sum, h) => sum + Number(h.moneyApplied || 0), 0);
   return { total: items.length, completed, missed, pending, money };
 }
-function renderStatsBox(selector, subject) {
+function renderStatsBox(selector, subject, options = {}) {
   const box = $(selector);
   if (!box) return;
-  const s = homeworkStats(subject);
+  const s = homeworkStats(subject, options);
   const label = subject || '全部';
   box.innerHTML = `
     <div class="stat"><div class="v">${s.total}</div><div class="l">${label}作业</div></div>
@@ -335,14 +344,13 @@ function renderRewardSettings() {
 }
 function renderHomework() {
   renderRewardSettings();
-  renderStatsBox('#hw-stats', null);
+  renderStatsBox('#hw-stats', null, { dueDate: today() });
   renderStatsBox('#hw-stats-chinese', '语文');
   renderStatsBox('#hw-stats-math', '数学');
   renderStatsBox('#hw-stats-english', '英语');
   renderStatsBox('#hw-stats-manage', null);
   renderHomeworkList('#hw-today-list', null, { dueDate: today(), emptyText: '今天没有截止作业。' });
   renderHomeworkList('#hw-date-list', null, { assignedDate: ($('#hw-date-filter') && $('#hw-date-filter').value) || today(), emptyText: '这一天没有登记作业。' });
-  renderHomeworkList('#hw-list', null);
   renderHomeworkList('#hw-list-chinese', '语文');
   renderHomeworkList('#hw-list-math', '数学');
   renderHomeworkList('#hw-list-english', '英语');
@@ -410,38 +418,25 @@ function renderReview() {
 
 /* ---------------- 渲染：战报 ---------------- */
 function renderReport() {
-  const u = state.user;
-  const ws = mondayOf(today());
-  const log = (u.log || []).filter(l => l.date >= ws);
-  const homeworkDone = log.filter(l => l.type === 'hw').length;
-  const homeworkMissed = log.filter(l => l.type === 'hw_miss').length;
-  const rewardWeek = log
-    .filter(l => l.type === 'hw' || l.type === 'hw_miss')
-    .reduce((s, l) => {
-      const m = String(l.detail || '').match(/([+-])¥([0-9.]+)/);
-      if (!m) return s;
-      return s + (m[1] === '-' ? -1 : 1) * Number(m[2]);
-    }, 0);
-  const checkinDays = new Set((u.checkins || []).filter(d => d >= ws)).size;
-  const xpWeek = log.reduce((s, l) => s + (l.xp || 0), 0);
-
-  $('#rp-week').textContent = '本周（' + ws + ' 起）';
-  $('#rp-grid').innerHTML = `
-    <div class="stat"><div class="v">${homeworkDone}</div><div class="l">完成作业</div></div>
-    <div class="stat"><div class="v">${homeworkMissed}</div><div class="l">未完成作业</div></div>
-    <div class="stat"><div class="v">${moneyText(rewardWeek)}</div><div class="l">本周奖惩</div></div>
-    <div class="stat"><div class="v">${checkinDays}🔥</div><div class="l">打卡天数</div></div>
-    <div class="stat"><div class="v">${xpWeek}</div><div class="l">本周经验</div></div>
-    <div class="stat"><div class="v">¥${Number(u.money || 0).toFixed(2).replace(/\.00$/, '')}</div><div class="l">奖励余额</div></div>`;
-
-  const recent = (u.log || []).slice(-6).reverse();
-  $('#rp-log').className = 'compact-log';
-  $('#rp-log').innerHTML = recent.length ? recent.map(l => {
-    const name = { hw: '完成作业', hw_miss: '未完成作业', hw_pending: '恢复待处理', hw_delete: '删除作业', review: '复习', master: '掌握一项', checkin: '打卡', add: '新增' }[l.type] || l.type;
-    return `<div class="item" style="margin-bottom:8px"><div class="top"><span class="title">${esc(name)}</span>
-      <span class="meta">${l.date} · +${l.xp || 0} XP</span></div>
-      ${l.detail ? `<div class="body">${esc(l.detail)}</div>` : ''}</div>`;
-  }).join('') : '<div class="empty">还没有动态。</div>';
+  const start = ($('#rp-start') && $('#rp-start').value) || mondayOf(today());
+  const end = ($('#rp-end') && $('#rp-end').value) || today();
+  $('#rp-week').textContent = `${start} 至 ${end}，按布置日期统计`;
+  const groups = [null, ...SUBJECTS];
+  $('#rp-grid').innerHTML = groups.map(subject => {
+    const s = homeworkStats(subject, { start, end });
+    const name = subject || '全部';
+    const rate = s.total ? Math.round(s.completed / s.total * 100) : 0;
+    return `<div class="stat report-subject">
+      <div class="subject-name">${name}</div>
+      <div class="mini-grid">
+        <span><b>${s.total}</b><em>总数</em></span>
+        <span><b>${s.completed}</b><em>完成</em></span>
+        <span><b>${s.missed}</b><em>未完成</em></span>
+        <span><b>${s.pending}</b><em>待处理</em></span>
+      </div>
+      <div class="body">完成率 ${rate}% · 奖惩 ${moneyText(s.money)}</div>
+    </div>`;
+  }).join('');
 }
 
 /* ---------------- 总渲染 ---------------- */
@@ -450,11 +445,11 @@ function renderAll() {
   $('#ui-name').textContent = state.user.displayName || state.user.username;
   $('#ui-grade').textContent = state.user.grade || '未填年级';
   $('#ui-avatar').textContent = (state.user.displayName || state.user.username || '?').slice(0, 1);
+  ensureHomeworkDefaults();
   renderSpace();
   renderOverview();
   renderHomework();
   renderReport();
-  ensureHomeworkDefaults();
 }
 
 function renderSpace() {
@@ -477,6 +472,10 @@ function ensureHomeworkDefaults() {
   if (due && !due.value) due.value = today();
   const filter = $('#hw-date-filter');
   if (filter && !filter.value) filter.value = today();
+  const rpStart = $('#rp-start');
+  const rpEnd = $('#rp-end');
+  if (rpStart && !rpStart.value) rpStart.value = mondayOf(today());
+  if (rpEnd && !rpEnd.value) rpEnd.value = today();
 }
 
 /* ---------------- 增删改操作 ---------------- */
@@ -594,6 +593,8 @@ $('#reward-save').addEventListener('click', () => {
 });
 
 $('#hw-date-filter').addEventListener('change', () => renderHomework());
+$('#rp-start').addEventListener('change', () => renderReport());
+$('#rp-end').addEventListener('change', () => renderReport());
 
 // 旧复习模块入口保留兼容，不在当前界面显示
 if ($('#po-save')) $('#po-save').addEventListener('click', () => {

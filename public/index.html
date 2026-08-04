@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>学习台 StudyDeck · 多人在线版</title>
-  <link rel="stylesheet" href="style.css?v=20260804090303" />
+  <link rel="stylesheet" href="style.css?v=20260804092918" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=20260803175800"></script>
 </head>
@@ -125,34 +125,25 @@
         <div class="subtask-list" id="hw-subtask-list"></div>
         <div style="margin-top:12px"><button class="btn" id="hw-save">登记作业</button></div>
       </div>
-      <div class="card">
-        <h2>奖励设置</h2>
-        <div class="hint">每科完成奖励多少钱，标记未完成扣多少钱。设置会保存在共享空间里。</div>
-        <div class="form-row" id="reward-settings"></div>
-        <div style="margin-top:12px"><button class="btn sm" id="reward-save">保存奖励设置</button></div>
-      </div>
-      <div class="card">
-        <h2>今日作业</h2>
-        <div class="hint">只显示今天截止的作业，方便当天集中处理。</div>
-        <div id="hw-today-list"></div>
-      </div>
-      <div class="card">
-        <h2>按布置日期查看</h2>
-        <div class="hint">选择日期，查看那一天登记/布置的作业。</div>
-        <div class="form-row">
-          <div style="min-width:180px"><label>布置日期</label><input id="hw-date-filter" type="date" /></div>
+      <div class="split-grid">
+        <div class="card">
+          <h2>今日作业</h2>
+          <div class="hint">只显示今天截止的作业，方便当天集中处理。</div>
+          <div id="hw-today-list"></div>
         </div>
-        <div id="hw-date-list" style="margin-top:12px"></div>
+        <div class="card">
+          <h2>按布置日期查看</h2>
+          <div class="hint">选择日期，查看那一天登记/布置的作业。</div>
+          <div class="form-row">
+            <div style="min-width:180px"><label>布置日期</label><input id="hw-date-filter" type="date" /></div>
+          </div>
+          <div id="hw-date-list" style="margin-top:12px"></div>
+        </div>
       </div>
       <div class="card">
-        <h2>作业统计</h2>
+        <h2>今日概况</h2>
         <div class="report-grid" id="hw-stats"></div>
       </div>
-      <div class="card">
-        <h2>全部作业</h2>
-        <div class="hint">这里可以处理完成状态；删除请到“管理”页。</div>
-      </div>
-      <div id="hw-list"></div>
     </section>
 
     <section class="section" data-section="homework-chinese">
@@ -185,8 +176,14 @@
     <section class="section" data-section="homework-manage">
       <div class="card">
         <h2>作业管理</h2>
-        <div class="hint">集中查看和删除作业，避免在日常处理列表里误删。</div>
+        <div class="hint">集中查看、统计和删除作业，避免在日常处理列表里误删。</div>
         <div class="report-grid" id="hw-stats-manage"></div>
+      </div>
+      <div class="card">
+        <h2>奖励设置</h2>
+        <div class="hint">每科完成奖励多少钱，标记未完成扣多少钱。设置会保存在共享空间里。</div>
+        <div class="form-row" id="reward-settings"></div>
+        <div style="margin-top:12px"><button class="btn sm" id="reward-save">保存奖励设置</button></div>
       </div>
       <div id="hw-list-manage"></div>
     </section>
@@ -194,18 +191,18 @@
     <!-- 战报 -->
     <section class="section" data-section="report">
       <div class="card">
-        <h2>本周简报</h2>
-        <div class="hint" id="rp-week">本周</div>
+        <h2>作业统计</h2>
+        <div class="hint" id="rp-week">选择开始和结束日期，查看时间段内按布置日期统计的作业情况。</div>
+        <div class="form-row">
+          <div style="min-width:160px"><label>开始日期</label><input id="rp-start" type="date" /></div>
+          <div style="min-width:160px"><label>结束日期</label><input id="rp-end" type="date" /></div>
+        </div>
         <div class="report-grid" id="rp-grid"></div>
-      </div>
-      <div class="card">
-        <h2>最近动态</h2>
-        <div id="rp-log"></div>
       </div>
     </section>
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260804090303"></script>
+  <script src="app.js?v=20260804092918"></script>
 </body>
 </html>
