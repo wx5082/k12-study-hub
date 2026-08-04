@@ -165,7 +165,7 @@ async function refreshState(silent = true) {
     renderAll();
     if (!silent) toast('已同步最新数据');
   } catch (e) {
-    if (!silent) toast(e.message);
+    if (!silent) toast(friendlyError(e));
   }
 }
 function startRefresh() {
@@ -185,6 +185,13 @@ function genSpaceCode() {
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 1800);
+}
+function friendlyError(err) {
+  const msg = err && err.message ? err.message : String(err || '');
+  if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+    return '无法连接 Supabase，请换网络或浏览器后重试；如果是在微信/QQ内打开，请复制链接到 Safari/Chrome。';
+  }
+  return msg;
 }
 function award(xp, type, detail) {
   state.user.xp = (state.user.xp || 0) + xp;
@@ -856,7 +863,7 @@ $('#sp-create').addEventListener('click', async () => {
     await loadCurrentUser();
     renderAll();
     toast('共享空间已创建');
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(friendlyError(e)); }
 });
 $('#sp-join').addEventListener('click', async () => {
   const code = $('#sp-code').value.trim().toUpperCase();
@@ -870,7 +877,7 @@ $('#sp-join').addEventListener('click', async () => {
     $('#sp-code').value = '';
     renderAll();
     toast('已加入共享空间');
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(friendlyError(e)); }
 });
 
 // 退出
@@ -1029,7 +1036,7 @@ $('#authForm').addEventListener('submit', async e => {
     $('#auth').classList.add('hidden'); $('#app').classList.remove('hidden');
     renderAll();
     startRefresh();
-  } catch (err) { $('#au-err').textContent = err.message; }
+  } catch (err) { $('#au-err').textContent = friendlyError(err); }
 });
 
 // 启动：恢复 Supabase 浏览器会话
@@ -1041,5 +1048,5 @@ loadCurrentUser().then(user => {
   renderAll();
   startRefresh();
 }).catch(err => {
-  $('#au-err').textContent = err.message;
+  $('#au-err').textContent = friendlyError(err);
 });
