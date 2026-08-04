@@ -119,6 +119,27 @@ textarea { resize: vertical; min-height: 60px; }
 .item .body { font-size: 13px; color: var(--txt-dim); margin-top: 6px; white-space: pre-wrap; }
 .item.done { opacity: .72; }
 .item .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.override-box {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(183,121,31,.35);
+  border-radius: 10px;
+  background: #fff8e8;
+}
+.override-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #8a5a10;
+  margin-bottom: 8px;
+}
+.override-box .form-row { align-items: flex-end; }
+.override-box input,
+.override-box select { background: #fff; }
+.override-box .actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(183,121,31,.3);
+}
 .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
 .pill.due { background: rgba(255,107,107,.18); color: var(--red); }
 .pill.soon { background: rgba(255,180,84,.18); color: var(--amber); }

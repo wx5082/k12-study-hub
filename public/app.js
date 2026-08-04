@@ -255,6 +255,9 @@ function moneyText(n) {
   const v = Number(n || 0);
   return (v >= 0 ? '+¥' : '-¥') + Math.abs(v).toFixed(2).replace(/\.00$/, '');
 }
+function canOverrideHomework() {
+  return !state.user._space || state.user._space.role === 'owner';
+}
 function homeworkAssignedDate(h) {
   if (h.assignedDate) return h.assignedDate;
   if (h.createdAt) return fmt(new Date(h.createdAt));
@@ -327,17 +330,44 @@ function renderHomeworkList(selector, subject, options = {}) {
         <button class="btn ghost sm ${status === 'pending' ? 'active-state' : ''}" data-action="hw-pending" data-id="${h.id}" ${status === 'pending' || overdue ? 'disabled' : ''} ${locked}>${overdue ? '逾期锁定' : '待处理'}</button>` : '';
     const deleteDisabled = showDelete && overdue;
     const deleteButton = showDelete ? `<button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}" ${deleteDisabled ? 'disabled title="逾期未处理作业不可删除"' : ''}>${deleteDisabled ? '逾期不可删' : '删除'}</button>` : '';
+    const lastAudit = (h.auditLog || []).slice(-1)[0];
+    const auditLine = lastAudit ? `<div class="body">最近特殊管理：${esc(lastAudit.action)} · ${esc(lastAudit.reason)} · ${esc(fmtTime(lastAudit.at))}</div>` : '';
+    const overridePanel = options.adminManage && overdue ? renderOverridePanel(h) : '';
     return `<div class="item ${status !== 'pending' ? 'done' : ''}">
       <div class="top"><span class="title">${esc(h.title)}</span>
         <span class="meta">${esc(h.subject || '')}</span> ${dueTag}</div>
       ${assignedLine}
       ${doneTime}
+      ${auditLine}
       ${tasks}
       <div class="actions">
         ${actionButtons}
         ${deleteButton}
-      </div></div>`;
+      </div>
+      ${overridePanel}</div>`;
   }).join('');
+}
+function renderOverridePanel(h) {
+  if (!canOverrideHomework()) return '<div class="override-box"><div class="body">逾期作业已锁定，仅空间创建者可特殊管理。</div></div>';
+  return `<div class="override-box">
+    <div class="override-title">特殊管理</div>
+    <div class="form-row">
+      <div style="flex:1;min-width:180px"><label>原因</label><input data-override-reason="${h.id}" placeholder="如：老师延期 / 误登记 / 请假补录" /></div>
+      <div style="min-width:150px"><label>新截止日期</label><input data-override-due="${h.id}" type="date" value="${esc(h.due || today())}" /></div>
+      <div style="min-width:140px"><label>状态</label>
+        <select data-override-status="${h.id}">
+          <option value="pending">待处理</option>
+          <option value="completed">完成</option>
+          <option value="missed">未完成</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost sm" data-action="hw-override-due" data-id="${h.id}">修改截止</button>
+      <button class="btn sm" data-action="hw-override-status" data-id="${h.id}">修改状态</button>
+      <button class="btn ghost sm danger" data-action="hw-override-delete" data-id="${h.id}">强制删除</button>
+    </div>
+  </div>`;
 }
 function renderRewardSettings() {
   const box = $('#reward-settings');
@@ -374,7 +404,7 @@ function renderHomework() {
   renderHomeworkList('#hw-list-chinese', '语文');
   renderHomeworkList('#hw-list-math', '数学');
   renderHomeworkList('#hw-list-english', '英语');
-  renderHomeworkList('#hw-list-manage', null, { showActions: false, showDelete: true });
+  renderHomeworkList('#hw-list-manage', null, { showActions: false, showDelete: true, adminManage: true });
 }
 
 /* ---------------- 渲染：古诗文 / 单词 / 错题 ---------------- */
@@ -527,6 +557,28 @@ function settleHomework(h, nextStatus) {
     state.user.log = state.user.log || [];
     state.user.log.push({ date: today(), type: 'hw_pending', detail: `${h.subject}：${h.title} 恢复待处理`, xp: 0 });
   }
+}
+function auditHomework(h, action, reason, extra = {}) {
+  const entry = { action, reason, at: new Date().toISOString(), operator: state.user.username, ...extra };
+  h.auditLog = h.auditLog || [];
+  h.auditLog.push(entry);
+  state.user.log = state.user.log || [];
+  state.user.log.push({ date: today(), type: 'admin_override', detail: `${h.subject || '作业'}：${h.title} · ${action} · ${reason}`, xp: 0 });
+}
+function overrideReason(id) {
+  const el = $(`[data-override-reason="${id}"]`);
+  const reason = el ? el.value.trim() : '';
+  if (!reason) toast('请填写特殊管理原因');
+  return reason;
+}
+function forceDeleteHomework(id, reason) {
+  const h = state.user.homework.find(x => x.id === id);
+  if (!h) return false;
+  auditHomework(h, '强制删除', reason);
+  const amount = Number(h.moneyApplied || 0);
+  if (amount) state.user.money = Number(state.user.money || 0) - amount;
+  state.user.homework = state.user.homework.filter(x => x.id !== id);
+  return true;
 }
 function deleteHomework(id) {
   const h = state.user.homework.find(x => x.id === id);
@@ -723,6 +775,34 @@ document.addEventListener('click', e => {
     // checkbox 变化在 change 事件处理更稳，这里仅兜底
   } else if (a === 'hw-del') {
     if (deleteHomework(id)) sync().then(() => { renderAll(); toast('作业已删除'); });
+  } else if (a === 'hw-override-due') {
+    const h = state.user.homework.find(x => x.id === id);
+    if (!h || !canOverrideHomework()) return;
+    const reason = overrideReason(id); if (!reason) return;
+    const dueEl = $(`[data-override-due="${id}"]`);
+    const nextDue = dueEl && dueEl.value;
+    if (!nextDue) { toast('请选择新截止日期'); return; }
+    const oldDue = h.due;
+    h.due = nextDue;
+    h.updatedAt = new Date().toISOString();
+    auditHomework(h, '修改截止日期', reason, { from: oldDue, to: nextDue });
+    sync().then(() => { renderAll(); toast('截止日期已修改'); });
+  } else if (a === 'hw-override-status') {
+    const h = state.user.homework.find(x => x.id === id);
+    if (!h || !canOverrideHomework()) return;
+    const reason = overrideReason(id); if (!reason) return;
+    const statusEl = $(`[data-override-status="${id}"]`);
+    const nextStatus = statusEl && statusEl.value;
+    if (!['pending', 'completed', 'missed'].includes(nextStatus)) return;
+    const oldStatus = homeworkStatus(h);
+    settleHomework(h, nextStatus);
+    auditHomework(h, '修改状态', reason, { from: oldStatus, to: nextStatus });
+    sync().then(() => { renderAll(); toast('状态已特殊调整'); });
+  } else if (a === 'hw-override-delete') {
+    const h = state.user.homework.find(x => x.id === id);
+    if (!h || !canOverrideHomework()) return;
+    const reason = overrideReason(id); if (!reason) return;
+    if (forceDeleteHomework(id, reason)) sync().then(() => { renderAll(); toast('作业已强制删除'); });
   } else if (a === 'po-del') {
     state.user.poetry = state.user.poetry.filter(x => x.id !== id); sync().then(renderAll);
   } else if (a === 'wd-del') {
