@@ -415,6 +415,7 @@ function renderRewardPayout() {
 }
 function renderRewardCenter() {
   const stats = $('#points-stats');
+  const guide = $('#reward-guide');
   const store = $('#reward-store');
   const records = $('#reward-redemptions');
   if (!stats || !store || !records) return;
@@ -429,6 +430,31 @@ function renderRewardCenter() {
     <div class="stat"><div class="v flame">${state.user.points || 0}</div><div class="l">可用积分</div></div>
     <div class="stat"><div class="v master">${pending}</div><div class="l">待发放</div></div>
     <div class="stat"><div class="v">${fulfilled}</div><div class="l">已发放</div></div>`;
+  if (guide) {
+    const cfg = normalizeRewardConfig(state.user.rewardConfig);
+    const rewardText = SUBJECTS.map(s => `${s}完成 ${moneyText(cfg[s].reward)}，未完成 ${moneyText(-cfg[s].penalty)}`).join('；');
+    guide.innerHTML = `
+      <div class="guide-card">
+        <div class="guide-title">经验值用来做什么</div>
+        <p>累计经验不被消耗，用来升级和保留长期成长记录。当前是 Lv.${lv.level}，距离 Lv.${lv.level + 1} 还差 ${Math.max(0, lv.next - Number(state.user.xp || 0))} 经验。</p>
+      </div>
+      <div class="guide-card">
+        <div class="guide-title">可用积分怎么来</div>
+        <p>每日打卡 +10，登记作业 +2，完成作业 +15，完成小步骤 +3。获得经验时会同步增加可用积分。</p>
+      </div>
+      <div class="guide-card">
+        <div class="guide-title">积分怎么消耗</div>
+        <p>在积分商店兑换家庭权益，只扣可用积分，不影响等级。兑换后进入待发放，由家长确认发放或取消返还。</p>
+      </div>
+      <div class="guide-card">
+        <div class="guide-title">作业奖罚逻辑</div>
+        <p>${esc(rewardText)}。未完成只扣奖励金，不扣经验和积分；逾期作业会锁定，需要管理页特殊处理并填写原因。</p>
+      </div>
+      <div class="guide-card">
+        <div class="guide-title">建议使用方式</div>
+        <p>日常看积分，阶段看等级，周末统一处理兑换和奖励金发放。这样孩子能看到进步，家长也能控制真实支出。</p>
+      </div>`;
+  }
 
   const activeItems = state.user.rewardItems.filter(x => x.active !== false);
   if (!activeItems.length) {

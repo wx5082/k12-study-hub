@@ -170,6 +170,15 @@ textarea { resize: vertical; min-height: 60px; }
 .compact-log { display: grid; gap: 8px; }
 
 /* 奖励中心 */
+.guide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.guide-card {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+}
+.guide-title { font-weight: 800; color: var(--txt); margin-bottom: 6px; }
+.guide-card p { color: var(--txt-dim); font-size: 13px; line-height: 1.55; }
 .store-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
 .reward-item {
   display: flex;
