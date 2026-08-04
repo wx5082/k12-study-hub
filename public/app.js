@@ -35,9 +35,9 @@ function ensureDb() {
 }
 const SUBJECTS = ['语文', '数学', '英语'];
 const SUBJECT_KEYS = { '语文': 'chinese', '数学': 'math', '英语': 'english' };
-const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'money', 'rewardConfig', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
+const SYNC_FIELDS = ['displayName', 'grade', 'xp', 'money', 'rewardPaid', 'rewardConfig', 'checkins', 'homework', 'poetry', 'words', 'wrong', 'log'];
 const DEFAULT_DATA = () => ({
-  displayName: '', grade: '', xp: 0, money: 0,
+  displayName: '', grade: '', xp: 0, money: 0, rewardPaid: 0,
   rewardConfig: {
     '语文': { reward: 2, penalty: 1 },
     '数学': { reward: 2, penalty: 1 },
@@ -59,6 +59,7 @@ function publicFrom(profile, data, space) {
     grade: data.grade || profile.grade || '',
     xp: data.xp || 0,
     money: data.money || 0,
+    rewardPaid: data.rewardPaid || 0,
     rewardConfig: normalizeRewardConfig(data.rewardConfig),
     checkins: data.checkins || [],
     homework: data.homework || [],
@@ -244,6 +245,9 @@ function homeworkStatus(h) {
   if (h.status) return h.status;
   return h.done ? 'completed' : 'pending';
 }
+function isOverdueHomework(h) {
+  return homeworkStatus(h) === 'pending' && h.due && h.due < today();
+}
 function subjectConfig(subject) {
   return (state.user.rewardConfig && state.user.rewardConfig[subject]) || { reward: 0, penalty: 0 };
 }
@@ -303,7 +307,7 @@ function renderHomeworkList(selector, subject, options = {}) {
   if (!items.length) { list.innerHTML = `<div class="empty">${options.emptyText || '还没有登记作业。'}</div>`; return; }
   list.innerHTML = items.map(h => {
     const status = homeworkStatus(h);
-    const overdue = status === 'pending' && h.due && h.due < today();
+    const overdue = isOverdueHomework(h);
     const dueToday = status === 'pending' && h.due === today();
     const cfg = subjectConfig(h.subject);
     let dueTag = '';
@@ -320,7 +324,8 @@ function renderHomeworkList(selector, subject, options = {}) {
     const actionButtons = showActions ? `<button class="btn sm ${status === 'completed' ? 'success active-state' : ''}" data-action="hw-complete" data-id="${h.id}" ${status === 'completed' ? 'disabled' : ''}>完成</button>
         <button class="btn sm danger-fill ${status === 'missed' ? 'active-state' : ''}" data-action="hw-miss" data-id="${h.id}" ${status === 'missed' ? 'disabled' : ''}>未完成</button>
         <button class="btn ghost sm ${status === 'pending' ? 'active-state' : ''}" data-action="hw-pending" data-id="${h.id}" ${status === 'pending' ? 'disabled' : ''}>待处理</button>` : '';
-    const deleteButton = showDelete ? `<button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}">删除</button>` : '';
+    const deleteDisabled = showDelete && overdue;
+    const deleteButton = showDelete ? `<button class="btn ghost sm danger" data-action="hw-del" data-id="${h.id}" ${deleteDisabled ? 'disabled title="逾期未处理作业不可删除"' : ''}>${deleteDisabled ? '逾期不可删' : '删除'}</button>` : '';
     return `<div class="item ${status !== 'pending' ? 'done' : ''}">
       <div class="top"><span class="title">${esc(h.title)}</span>
         <span class="meta">${esc(h.subject || '')}</span> ${dueTag}</div>
@@ -342,8 +347,22 @@ function renderRewardSettings() {
     <label style="margin-top:6px">${s} 未完成扣款</label><input type="number" min="0" step="0.5" data-penalty="${s}" value="${cfg[s].penalty}" />
   </div>`).join('');
 }
+function renderRewardPayout() {
+  const stats = $('#reward-payout-stats');
+  const input = $('#reward-paid');
+  if (!stats || !input) return;
+  const total = Number(state.user.money || 0);
+  const paid = Number(state.user.rewardPaid || 0);
+  const pending = total - paid;
+  input.value = paid;
+  stats.innerHTML = `
+    <div class="stat"><div class="v">¥${total.toFixed(2).replace(/\.00$/, '')}</div><div class="l">累计奖励</div></div>
+    <div class="stat"><div class="v">¥${paid.toFixed(2).replace(/\.00$/, '')}</div><div class="l">已发放</div></div>
+    <div class="stat"><div class="v">${moneyText(pending)}</div><div class="l">待发放</div></div>`;
+}
 function renderHomework() {
   renderRewardSettings();
+  renderRewardPayout();
   renderStatsBox('#hw-stats', null, { dueDate: today() });
   renderStatsBox('#hw-stats-chinese', '语文');
   renderStatsBox('#hw-stats-math', '数学');
@@ -511,6 +530,10 @@ function settleHomework(h, nextStatus) {
 function deleteHomework(id) {
   const h = state.user.homework.find(x => x.id === id);
   if (!h) return false;
+  if (isOverdueHomework(h)) {
+    toast('逾期未处理作业不可删除');
+    return false;
+  }
   const amount = Number(h.moneyApplied || 0);
   if (amount) state.user.money = Number(state.user.money || 0) - amount;
   state.user.homework = state.user.homework.filter(x => x.id !== id);
@@ -592,6 +615,14 @@ $('#reward-save').addEventListener('click', () => {
   sync().then(() => { renderAll(); toast('奖励设置已保存'); });
 });
 
+$('#reward-paid-save').addEventListener('click', () => {
+  const paid = Number($('#reward-paid').value || 0);
+  state.user.rewardPaid = Math.max(0, paid);
+  state.user.log = state.user.log || [];
+  state.user.log.push({ date: today(), type: 'reward_paid', detail: `已发放奖励 ¥${state.user.rewardPaid.toFixed(2).replace(/\.00$/, '')}`, xp: 0 });
+  sync().then(() => { renderAll(); toast('已保存发放金额'); });
+});
+
 $('#hw-date-filter').addEventListener('change', () => renderHomework());
 $('#rp-start').addEventListener('change', () => renderReport());
 $('#rp-end').addEventListener('change', () => renderReport());
@@ -638,14 +669,14 @@ $('#sp-create').addEventListener('click', async () => {
   const name = $('#sp-name').value.trim() || ((state.user.displayName || state.user.username) + '的学习空间');
   try {
     let code = genSpaceCode();
+    let created = null;
     for (let i = 0; i < 5; i++) {
-      const exists = await db.from('spaces').select('code').eq('code', code).maybeSingle();
-      if (!exists.data) break;
+      const result = await db.from('spaces').insert({ code, name, owner_id: state.authUser.id, data: clientData(state.user) }).select('code').single();
+      if (!result.error) { created = result; break; }
+      if (result.error.code !== '23505') throw result.error;
       code = genSpaceCode();
     }
-    const seed = clientData(state.user);
-    const created = await db.from('spaces').insert({ code, name, owner_id: state.authUser.id, data: seed }).select('code').single();
-    if (created.error) throw created.error;
+    if (!created) throw new Error('共享码生成失败，请再试一次');
     const member = await db.from('space_members').insert({ code, user_id: state.authUser.id, role: 'owner' });
     if (member.error) throw member.error;
     const profile = await db.from('profiles').update({ active_space: code }).eq('id', state.authUser.id);

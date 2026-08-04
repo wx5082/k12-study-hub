@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>学习台 StudyDeck · 多人在线版</title>
-  <link rel="stylesheet" href="style.css?v=20260804092918" />
+  <link rel="stylesheet" href="style.css?v=20260804094059" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js?v=20260803175800"></script>
 </head>
@@ -185,6 +185,15 @@
         <div class="form-row" id="reward-settings"></div>
         <div style="margin-top:12px"><button class="btn sm" id="reward-save">保存奖励设置</button></div>
       </div>
+      <div class="card">
+        <h2>奖励发放</h2>
+        <div class="hint">记录已经实际发放的金额，系统会自动计算待发放金额。</div>
+        <div class="report-grid" id="reward-payout-stats"></div>
+        <div class="form-row" style="margin-top:12px">
+          <div style="min-width:180px"><label>已发放金额</label><input id="reward-paid" type="number" min="0" step="0.5" /></div>
+        </div>
+        <div style="margin-top:12px"><button class="btn sm" id="reward-paid-save">保存发放金额</button></div>
+      </div>
       <div id="hw-list-manage"></div>
     </section>
 
@@ -197,12 +206,12 @@
           <div style="min-width:160px"><label>开始日期</label><input id="rp-start" type="date" /></div>
           <div style="min-width:160px"><label>结束日期</label><input id="rp-end" type="date" /></div>
         </div>
-        <div class="report-grid" id="rp-grid"></div>
+        <div class="report-grid report-range-grid" id="rp-grid"></div>
       </div>
     </section>
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20260804092918"></script>
+  <script src="app.js?v=20260804094059"></script>
 </body>
 </html>

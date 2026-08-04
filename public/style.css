@@ -48,7 +48,7 @@ textarea { resize: vertical; min-height: 60px; }
 .btn.active-state:disabled { opacity: 1; box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
 .btn.success.active-state:disabled { box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
 .btn.danger-fill.active-state:disabled { box-shadow: 0 0 0 3px rgba(220,38,38,.18); }
-.tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--card-2); color: var(--txt-dim); }
+.tag { display: inline-flex; align-items: center; min-height: 32px; padding: 2px 10px; border-radius: 999px; font-size: 12px; background: var(--card-2); color: var(--txt-dim); }
 .hidden { display: none !important; }
 
 /* ---------- 登录页 ---------- */
@@ -139,6 +139,7 @@ textarea { resize: vertical; min-height: 60px; }
 .report-grid .stat { text-align: left; padding: 10px 12px; border-radius: 10px; }
 .report-grid .stat .v { font-size: 19px; line-height: 1.15; }
 .report-grid .stat .l { margin-top: 1px; }
+.report-range-grid { margin-top: 16px; }
 .report-subject { display: grid; gap: 8px; }
 .subject-name { font-weight: 800; color: var(--txt); }
 .mini-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
