@@ -194,8 +194,8 @@ function friendlyError(err) {
   return msg;
 }
 function award(xp, type, detail) {
-  state.user.xp = (state.user.xp || 0) + xp;
-  state.user.points = Number(state.user.points || 0) + xp;
+  state.user.xp = Math.round((Number(state.user.xp || 0) + Number(xp || 0)) * 100) / 100;
+  state.user.points = Math.round((Number(state.user.points || 0) + Number(xp || 0)) * 100) / 100;
   state.user.log = state.user.log || [];
   state.user.log.push({ date: today(), type, detail, xp });
 }
@@ -296,6 +296,9 @@ function subjectConfig(subject) {
 function moneyText(n) {
   const v = Number(n || 0);
   return (v >= 0 ? '+¥' : '-¥') + Math.abs(v).toFixed(2).replace(/\.00$/, '');
+}
+function pointsText(n) {
+  return Number(n || 0).toFixed(2).replace(/\.00$/, '');
 }
 function canOverrideHomework() {
   return !state.user._space || state.user._space.role === 'owner';
@@ -499,7 +502,7 @@ function renderRewardCenter() {
       </div>
       <div class="guide-card">
         <div class="guide-title">可用积分怎么来</div>
-        <p>每日打卡 +10，登记作业 +2，完成作业 +15，完成小步骤 +3。获得经验时会同步增加可用积分。</p>
+        <p>每日打卡 +10，完成作业 +5；登记作业不加积分。完成小步骤会按这份作业的步骤总数平均分配 5 分。</p>
       </div>
       <div class="guide-card">
         <div class="guide-title">积分怎么消耗</div>
@@ -567,7 +570,7 @@ function renderHomework() {
   renderStatsBox('#hw-stats-manage', null);
   renderHomeworkList('#hw-today-list', null, { dueDate: today(), emptyText: '今天没有截止作业。' });
   renderHomeworkList('#hw-date-list', null, { assignedDate: ($('#hw-date-filter') && $('#hw-date-filter').value) || today(), emptyText: '这一天没有登记作业。' });
-  renderHomeworkList('#hw-list-manage', null, { showActions: false, showDelete: true, adminManage: true });
+  renderHomeworkList('#hw-list-manage', null, { showActions: false, showDelete: canOverrideHomework(), adminManage: canOverrideHomework() });
 }
 
 /* ---------------- 渲染：古诗文 / 单词 / 错题 ---------------- */
@@ -659,11 +662,17 @@ function renderAll() {
   $('#ui-grade').textContent = state.user.grade || '未填年级';
   $('#ui-avatar').textContent = (state.user.displayName || state.user.username || '?').slice(0, 1);
   ensureHomeworkDefaults();
+  renderAdminVisibility();
   renderSpace();
   renderOverview();
   renderHomework();
   renderRewardCenter();
   renderReport();
+}
+
+function renderAdminVisibility() {
+  const allow = canOverrideHomework();
+  $$('.admin-only').forEach(el => el.classList.toggle('hidden', !allow));
 }
 
 function renderSpace() {
@@ -715,7 +724,7 @@ function settleHomework(h, nextStatus, options = {}) {
   h.updatedAt = new Date().toISOString();
 
   if (nextStatus === 'completed' && addXp) {
-    award(15, 'hw', `${h.subject}：${h.title} 完成 ${moneyText(nextAmount)}`);
+    award(5, 'hw', `${h.subject}：${h.title} 完成 ${moneyText(nextAmount)}`);
   } else if (nextStatus === 'missed' && addXp) {
     award(0, 'hw_miss', `${h.subject}：${h.title} 未完成 ${moneyText(nextAmount)}`);
   } else if (nextStatus === 'pending') {
@@ -815,7 +824,6 @@ $('#hw-save').addEventListener('click', () => {
   if (!title) { toast('请填写作业内容'); return; }
   state.user.homework = state.user.homework || [];
   state.user.homework.push({ id: uid(), subject, title, due, assignedDate: today(), status: 'pending', done: false, moneyApplied: 0, tasks: pendingSubtasks.slice(), createdAt: new Date().toISOString() });
-  award(2, 'add', title);
   pendingSubtasks = [];
   $('#hw-subject').value = '语文'; $('#hw-title').value = ''; $('#hw-due').value = today();
   renderPendingSubtasks();
@@ -823,6 +831,7 @@ $('#hw-save').addEventListener('click', () => {
 });
 
 $('#reward-save').addEventListener('click', () => {
+  if (!canOverrideHomework()) { toast('仅空间创建者可修改奖励设置'); return; }
   const cfg = normalizeRewardConfig(state.user.rewardConfig);
   SUBJECTS.forEach(s => {
     const reward = Number(($(`[data-reward="${s}"]`) || {}).value || 0);
@@ -834,6 +843,7 @@ $('#reward-save').addEventListener('click', () => {
 });
 
 $('#reward-paid-save').addEventListener('click', () => {
+  if (!canOverrideHomework()) { toast('仅空间创建者可保存发放金额'); return; }
   const paid = Number($('#reward-paid').value || 0);
   state.user.rewardPaid = Math.max(0, paid);
   state.user.log = state.user.log || [];
@@ -900,6 +910,7 @@ $('#btn-checkin').addEventListener('click', () => {
 
 // 共享空间
 $('#sp-create').addEventListener('click', async () => {
+  if (state.user._space && !canOverrideHomework()) { toast('仅空间创建者可管理共享空间'); return; }
   const name = $('#sp-name').value.trim() || ((state.user.displayName || state.user.username) + '的学习空间');
   try {
     let code = genSpaceCode();
@@ -917,6 +928,7 @@ $('#sp-create').addEventListener('click', async () => {
   } catch (e) { toast(friendlyError(e)); }
 });
 $('#sp-join').addEventListener('click', async () => {
+  if (state.user._space && !canOverrideHomework()) { toast('仅空间创建者可管理共享空间'); return; }
   const code = $('#sp-code').value.trim().toUpperCase();
   if (!code) { toast('请输入共享码'); return; }
   try {
@@ -1047,7 +1059,13 @@ document.addEventListener('change', e => {
   const st = (h.tasks || []).find(x => x.id === t.dataset.tid);
   if (!st) return;
   st.done = t.checked;
-  if (st.done) { award(3, 'hw', '完成步骤'); toast('+3'); }
+  if (st.done && !st.pointAwarded) {
+    const total = Math.max(1, (h.tasks || []).length);
+    const stepPoints = Math.round((5 / total) * 100) / 100;
+    st.pointAwarded = true;
+    award(stepPoints, 'hw_step', `${h.subject || '作业'}：${h.title} 完成步骤`);
+    toast('+' + pointsText(stepPoints));
+  }
   sync().then(renderAll);
 });
 
