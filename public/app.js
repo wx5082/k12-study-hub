@@ -636,10 +636,10 @@ function renderReview() {
 function renderReport() {
   const start = ($('#rp-start') && $('#rp-start').value) || mondayOf(today());
   const end = ($('#rp-end') && $('#rp-end').value) || today();
-  $('#rp-week').textContent = `${start} 至 ${end}，按布置日期统计`;
+  $('#rp-week').textContent = `${start} 至 ${end}，按截止日期统计`;
   const groups = [null, ...SUBJECTS];
   $('#rp-grid').innerHTML = groups.map(subject => {
-    const s = homeworkStats(subject, { start, end });
+    const s = homeworkStats(subject, { dueStart: start, dueEnd: end });
     const name = subject || '全部';
     const rate = s.total ? Math.round(s.completed / s.total * 100) : 0;
     return `<div class="stat report-subject">
